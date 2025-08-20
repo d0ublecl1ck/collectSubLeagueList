@@ -72,7 +72,6 @@ class InputPage(BasePage):
             form_frame, "赛事年份*:", 2, column=2, width=15
         )
         self.year_entry.config(textvariable=self.year_var)
-        self.year_entry.insert(0, str(datetime.now().year))
         
         # 第四行
         self.group_entry = self.create_labeled_entry(
@@ -181,7 +180,7 @@ class InputPage(BasePage):
         self.country_var.set("")
         self.league_var.set("")
         self.type_var.set("常规")
-        self.year_var.set(str(datetime.now().year))
+        self.year_var.set("")
         self.group_var.set("默认组")
         self.link_var.set("")
         self.link_second_var.set("")

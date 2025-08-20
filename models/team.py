@@ -15,6 +15,7 @@ class Team(Base):
     
     # 外键关联
     task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, comment='关联的任务ID')
+    js_data_id = Column(Integer, ForeignKey('js_data_raw.id'), nullable=True, comment='关联的JS数据源ID')
     
     # 队伍基本信息
     team_code = Column(Integer, primary_key=True, nullable=False, comment='队伍编码（主键）')
@@ -38,10 +39,12 @@ class Team(Base):
     
     # 关联关系
     task = relationship("Task", back_populates="teams")
+    js_data_source = relationship("JsDataRaw", back_populates="teams")
     
     # 索引优化建议
     __table_args__ = (
         Index('idx_task_id', 'task_id'),
+        Index('idx_js_data_id', 'js_data_id'),
         Index('idx_league_id', 'league_id'),
         Index('idx_home_name_cn', 'home_name_cn'),
     )

@@ -6,6 +6,8 @@ Models package for collectSubLeagueListLast
 from .base import Base
 from .task import Task
 from .team import Team
+from .js_data_raw import JsDataRaw
+from .standings import Standings
 from .database import DatabaseManager
 
-__all__ = ['Base', 'Task', 'Team', 'DatabaseManager']
+__all__ = ['Base', 'Task', 'Team', 'JsDataRaw', 'Standings', 'DatabaseManager']

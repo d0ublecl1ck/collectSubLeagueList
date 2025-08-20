@@ -18,7 +18,8 @@ from pages import (
     InputPage, 
     InputManagementPage, 
     DataCrawlPage, 
-    DataManagementPage
+    DataManagementPage,
+    BatchImportPage
 )
 
 
@@ -148,12 +149,14 @@ class FootballDataApp:
             # 创建各个页面
             self.input_page = InputPage(self.notebook, self.db_manager)
             self.input_management_page = InputManagementPage(self.notebook, self.db_manager)
+            self.batch_import_page = BatchImportPage(self.notebook, self.db_manager)
             self.data_crawl_page = DataCrawlPage(self.notebook, self.db_manager)
             self.data_management_page = DataManagementPage(self.notebook, self.db_manager)
             
             # 添加标签页
             self.notebook.add(self.input_page.frame, text="输入", padding=5)
             self.notebook.add(self.input_management_page.frame, text="输入管理", padding=5)
+            self.notebook.add(self.batch_import_page.frame, text="批量导入", padding=5)
             self.notebook.add(self.data_crawl_page.frame, text="数据爬取", padding=5)
             self.notebook.add(self.data_management_page.frame, text="数据管理", padding=5)
             
@@ -186,14 +189,14 @@ class FootballDataApp:
         
     def import_data(self):
         """导入数据"""
-        # 切换到数据管理页面
-        self.notebook.select(3)
-        self.update_status("导入数据")
+        # 切换到批量导入页面
+        self.notebook.select(2)
+        self.update_status("批量导入数据")
         
     def export_data(self):
         """导出数据"""
         # 切换到数据管理页面
-        self.notebook.select(3)
+        self.notebook.select(4)
         self.update_status("导出数据")
         
     def database_management(self):

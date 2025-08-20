@@ -38,13 +38,15 @@ class Task(Base):
     
     # 关联关系
     teams = relationship("Team", back_populates="task", cascade="all, delete-orphan")
+    js_data_records = relationship("JsDataRaw", back_populates="task", cascade="all, delete-orphan")
+    standings_records = relationship("Standings", back_populates="task", cascade="all, delete-orphan")
     
     # 索引优化建议和约束
     __table_args__ = (
         Index('idx_country_league_year', 'country', 'league', 'year'),
         Index('idx_last_crawl_time', 'last_crawl_time'),
         Index('idx_type', 'type'),
-        UniqueConstraint('league', 'year', name='uk_league_year'),
+        UniqueConstraint('league', 'year', 'group', name='uk_league_year_group'),
     )
     
     def __repr__(self):
