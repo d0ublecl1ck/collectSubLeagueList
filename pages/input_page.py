@@ -67,6 +67,8 @@ class InputPage(BasePage):
         )
         self.type_combo.config(textvariable=self.type_var)
         self.type_combo.set("常规")
+        # 绑定类型选择变化事件
+        self.type_combo.bind("<<ComboboxSelected>>", self.on_type_change)
         
         self.year_entry = self.create_labeled_entry(
             form_frame, "赛事年份*:", 2, column=2, width=15
@@ -87,11 +89,16 @@ class InputPage(BasePage):
         self.link_entry = ttk.Entry(link_frame, textvariable=self.link_var, width=60)
         self.link_entry.grid(row=0, column=1, sticky='ew', padx=5, pady=5)
         
-        ttk.Label(link_frame, text="备用链接:").grid(row=1, column=0, sticky='e', padx=5, pady=5)
+        # 备用链接 - 保存控件引用以便动态显示/隐藏
+        self.link_second_label = ttk.Label(link_frame, text="备用链接:")
+        self.link_second_label.grid(row=1, column=0, sticky='e', padx=5, pady=5)
         self.link_second_entry = ttk.Entry(link_frame, textvariable=self.link_second_var, width=60)
         self.link_second_entry.grid(row=1, column=1, sticky='ew', padx=5, pady=5)
         
         link_frame.columnconfigure(1, weight=1)
+        
+        # 初始化备用链接显示状态
+        self.on_type_change()
         
         # 按钮区域
         button_frame = ttk.Frame(self.frame)
@@ -185,4 +192,20 @@ class InputPage(BasePage):
         self.link_var.set("")
         self.link_second_var.set("")
         
+        # 重置备用链接显示状态
+        self.on_type_change()
+        
         self.log_action("清空表单")
+    
+    def on_type_change(self, event=None):
+        """根据选择的赛事类型动态显示/隐藏备用链接"""
+        selected_type = self.type_var.get()
+        
+        if selected_type in ["常规", "东西拆分"]:
+            # 隐藏备用链接行
+            self.link_second_label.grid_remove()
+            self.link_second_entry.grid_remove()
+        else:  # 联二合并, 春秋合并
+            # 显示备用链接行
+            self.link_second_label.grid(row=1, column=0, sticky='e', padx=5, pady=5)
+            self.link_second_entry.grid(row=1, column=1, sticky='ew', padx=5, pady=5)
