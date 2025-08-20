@@ -51,6 +51,16 @@ models/
 ├── task.py         # Task模型
 ├── team.py         # Team模型
 └── database.py     # DatabaseManager类
+
+pages/
+├── __init__.py            # 页面模块导出
+├── base_page.py          # 基础页面类
+├── input_page.py         # 输入页面 - 任务录入
+├── input_management_page.py  # 输入管理页面 - 任务管理
+├── data_crawl_page.py    # 数据爬取页面 - 爬虫控制
+└── data_management_page.py   # 数据管理页面 - 队伍数据管理
+
+main.py                   # GUI主应用程序
 ```
 
 ## 数据库操作示例
@@ -74,13 +84,31 @@ with db.get_session() as session:
 - 依赖: SQLAlchemy, loguru
 - 数据库: SQLite (可扩展其他)
 
+## GUI 功能说明
+
+### 页面功能
+1. **输入页面** - 任务录入表单
+   
+2. **输入管理页面** - 任务管理界面
+   
+3. **数据爬取页面** - 爬虫执行控制
+   
+4. **数据管理页面** - 队伍数据管理
+
+### 技术特性
+- 基于 tkinter + ttk 的现代 GUI 界面
+- MVC 架构设计，页面模块化
+- 多线程爬虫执行，不阻塞界面
+- 完整的日志记录系统
+- 数据库会话管理
+
 ## 常用命令
 ```bash
 # 安装依赖
 uv sync
 
-# 运行项目
-python main.py
+# 运行 GUI 应用
+uv run main.py
 
 # Git操作
 git add .
@@ -93,3 +121,10 @@ git push
 - 数据库操作使用会话管理器
 - 遵循现有代码风格
 - 错误记录在此文档防止重复
+
+## 开发经验记录
+### GUI 开发注意事项
+- 所有 Python 文件需添加 `# -*- coding: utf-8 -*-` 编码声明
+- 使用 `uv run` 运行程序确保依赖正确加载
+- tkinter 应用使用多线程时设置 `daemon=True` 避免程序无法退出
+- 长文本字符串使用 `\\n` 转义换行符避免语法错误
