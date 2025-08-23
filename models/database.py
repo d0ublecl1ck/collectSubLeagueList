@@ -29,21 +29,13 @@ class DatabaseManager:
 
     def create_tables(self):
         """创建所有表"""
-        try:
-            Base.metadata.create_all(self.engine)
-            logger.info("数据库表创建成功")
-        except Exception as e:
-            logger.error(f"创建数据库表失败: {e}")
-            raise
+        Base.metadata.create_all(self.engine)
+        logger.info("数据库表创建成功")
 
     def drop_tables(self):
         """删除所有表"""
-        try:
-            Base.metadata.drop_all(self.engine)
-            logger.info("数据库表删除成功")
-        except Exception as e:
-            logger.error(f"删除数据库表失败: {e}")
-            raise
+        Base.metadata.drop_all(self.engine)
+        logger.info("数据库表删除成功")
 
     @contextmanager
     def get_session(self):
@@ -64,20 +56,12 @@ class DatabaseManager:
 
     def close_all_connections(self):
         """关闭所有连接"""
-        try:
-            self.engine.dispose()
-            logger.info("所有数据库连接已关闭")
-        except Exception as e:
-            logger.error(f"关闭数据库连接失败: {e}")
-            raise
+        self.engine.dispose()
+        logger.info("所有数据库连接已关闭")
 
     def get_table_info(self):
         """获取数据库表信息"""
-        try:
-            with self.get_session() as session:
-                tables = Base.metadata.tables.keys()
-                logger.info(f"数据库包含表: {list(tables)}")
-                return list(tables)
-        except Exception as e:
-            logger.error(f"获取表信息失败: {e}")
-            raise
+        with self.get_session() as session:
+            tables = Base.metadata.tables.keys()
+            logger.info(f"数据库包含表: {list(tables)}")
+            return list(tables)

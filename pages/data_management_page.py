@@ -5,9 +5,11 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from datetime import datetime
+from sqlalchemy import func
+import webbrowser
 
 from .base_page import BasePage
-from models import Task, Team
+from models import Task, Team, Match, Standings
 
 
 class DataManagementPage(BasePage):
@@ -23,42 +25,211 @@ class DataManagementPage(BasePage):
         )
         title_label.pack(pady=(0, 20))
         
-        # 任务选择器
-        self.create_task_selector()
+        # 任务搜索区域
+        self.create_task_search_area()
         
-        # 工具栏
-        self.create_toolbar()
+        # 轮次选择区域
+        self.create_round_selector()
         
-        # 队伍数据表格
-        self.create_team_table()
+        # 主要内容区域（赛程表和积分榜）
+        self.create_main_content_area()
         
         # 统计信息
         self.create_statistics_panel()
         
-        # 初始化
-        self.refresh_task_list()
+        # 初始化数据
+        self.all_task_items = []
+        self.current_task_id = None
+        self.current_round = None
+        self.refresh_task_data()
         
-    def create_task_selector(self):
-        """创建任务选择器"""
-        selector_frame = ttk.LabelFrame(self.frame, text="选择联赛任务", padding=10)
-        selector_frame.pack(fill=tk.X, pady=(0, 15))
+    def create_task_search_area(self):
+        """创建任务搜索区域"""
+        # 任务搜索框架
+        search_frame = ttk.LabelFrame(self.frame, text="任务搜索", padding=10)
+        search_frame.pack(fill=tk.X, pady=(0, 15))
         
-        ttk.Label(selector_frame, text="任务:").pack(side=tk.LEFT, padx=(0, 5))
+        # 工具栏
+        toolbar_frame = ttk.Frame(search_frame)
+        toolbar_frame.pack(fill=tk.X, pady=(0, 10))
         
-        self.task_var = tk.StringVar()
-        self.task_combo = ttk.Combobox(
-            selector_frame, 
-            textvariable=self.task_var,
+        # 搜索框
+        search_controls = ttk.Frame(toolbar_frame)
+        search_controls.pack(side=tk.LEFT)
+        
+        ttk.Label(search_controls, text="搜索任务:").pack(side=tk.LEFT, padx=(0, 5))
+        self.search_var = tk.StringVar()
+        self.search_var.trace('w', self.on_task_search_change)
+        search_entry = ttk.Entry(search_controls, textvariable=self.search_var, width=30)
+        search_entry.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 刷新按钮
+        refresh_btn = ttk.Button(toolbar_frame, text="刷新任务", command=self.refresh_task_data)
+        refresh_btn.pack(side=tk.RIGHT)
+        
+        # 任务列表
+        list_container = ttk.Frame(search_frame)
+        list_container.pack(fill=tk.BOTH, expand=True)
+        
+        # 创建任务选择 Treeview
+        columns = ('ID', '联赛名称', '国家', '年份', '类型', '分组', '最后爬取')
+        self.task_tree = ttk.Treeview(list_container, columns=columns, show='headings', height=8)
+        
+        # 设置列标题和宽度
+        self.task_tree.heading('ID', text='ID')
+        self.task_tree.heading('联赛名称', text='联赛名称')
+        self.task_tree.heading('国家', text='国家')
+        self.task_tree.heading('年份', text='年份')
+        self.task_tree.heading('类型', text='类型')
+        self.task_tree.heading('分组', text='分组')
+        self.task_tree.heading('最后爬取', text='最后爬取')
+        
+        self.task_tree.column('ID', width=50, anchor='center')
+        self.task_tree.column('联赛名称', width=200)
+        self.task_tree.column('国家', width=100)
+        self.task_tree.column('年份', width=80, anchor='center')
+        self.task_tree.column('类型', width=100, anchor='center')
+        self.task_tree.column('分组', width=100, anchor='center')
+        self.task_tree.column('最后爬取', width=120, anchor='center')
+        
+        # 滚动条
+        task_scrollbar = ttk.Scrollbar(list_container, orient=tk.VERTICAL, command=self.task_tree.yview)
+        self.task_tree.configure(yscrollcommand=task_scrollbar.set)
+        
+        # 布局
+        self.task_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        task_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 绑定选择事件
+        self.task_tree.bind('<<TreeviewSelect>>', self.on_task_selected)
+    
+    def create_round_selector(self):
+        """创建轮次选择区域"""
+        round_frame = ttk.LabelFrame(self.frame, text="轮次选择", padding=10)
+        round_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        ttk.Label(round_frame, text="选择轮次:").pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.round_var = tk.StringVar()
+        self.round_combo = ttk.Combobox(
+            round_frame, 
+            textvariable=self.round_var,
             state="readonly",
-            width=50
+            width=20
         )
-        self.task_combo.pack(side=tk.LEFT, padx=(0, 10))
-        self.task_combo.bind('<<ComboboxSelected>>', self.on_task_selected)
+        self.round_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.round_combo.bind('<<ComboboxSelected>>', self.on_round_selected)
         
-        refresh_btn = ttk.Button(selector_frame, text="刷新", command=self.refresh_task_list)
-        refresh_btn.pack(side=tk.LEFT)
+        # 积分榜类型选择
+        ttk.Label(round_frame, text="积分榜类型:").pack(side=tk.LEFT, padx=(20, 5))
+        self.standings_type_var = tk.StringVar()
+        self.standings_type_combo = ttk.Combobox(
+            round_frame,
+            textvariable=self.standings_type_var,
+            values=["总积分榜", "主场积分榜", "客场积分榜"],
+            state="readonly",
+            width=15
+        )
+        self.standings_type_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.standings_type_combo.set("总积分榜")
+        self.standings_type_combo.bind('<<ComboboxSelected>>', self.on_standings_type_changed)
+    
+    def create_main_content_area(self):
+        """创建主要内容区域（赛程表和积分榜）"""
+        content_frame = ttk.Frame(self.frame)
+        content_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
         
-    def create_toolbar(self):
+        # 左侧：赛程表
+        self.create_match_table(content_frame)
+        
+        # 右侧：积分榜
+        self.create_standings_table(content_frame)
+        
+        # 设置权重
+        content_frame.grid_columnconfigure(0, weight=1)
+        content_frame.grid_columnconfigure(1, weight=1)
+    
+    def create_match_table(self, parent):
+        """创建赛程表"""
+        match_frame = ttk.LabelFrame(parent, text="赛程表", padding=10)
+        match_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 10))
+        
+        # 创建 Treeview
+        match_columns = ('轮次', '时间', '主队', '比分', '客队', '状态')
+        self.match_tree = ttk.Treeview(match_frame, columns=match_columns, show='headings', height=15)
+        
+        # 设置列标题和宽度
+        self.match_tree.heading('轮次', text='轮次')
+        self.match_tree.heading('时间', text='时间')
+        self.match_tree.heading('主队', text='主队')
+        self.match_tree.heading('比分', text='比分')
+        self.match_tree.heading('客队', text='客队')
+        self.match_tree.heading('状态', text='状态')
+        
+        self.match_tree.column('轮次', width=60, anchor='center')
+        self.match_tree.column('时间', width=120, anchor='center')
+        self.match_tree.column('主队', width=120, anchor='center')
+        self.match_tree.column('比分', width=80, anchor='center')
+        self.match_tree.column('客队', width=120, anchor='center')
+        self.match_tree.column('状态', width=60, anchor='center')
+        
+        # 滚动条
+        match_v_scrollbar = ttk.Scrollbar(match_frame, orient=tk.VERTICAL, command=self.match_tree.yview)
+        self.match_tree.configure(yscrollcommand=match_v_scrollbar.set)
+        
+        # 布局
+        self.match_tree.grid(row=0, column=0, sticky='nsew')
+        match_v_scrollbar.grid(row=0, column=1, sticky='ns')
+        
+        match_frame.grid_rowconfigure(0, weight=1)
+        match_frame.grid_columnconfigure(0, weight=1)
+    
+    def create_standings_table(self, parent):
+        """创建积分榜"""
+        standings_frame = ttk.LabelFrame(parent, text="积分榜", padding=10)
+        standings_frame.grid(row=0, column=1, sticky='nsew', padx=(10, 0))
+        
+        # 创建 Treeview
+        standings_columns = ('排名', '队名', '场次', '胜', '平', '负', '进球', '失球', '净胜球', '积分', '胜率')
+        self.standings_tree = ttk.Treeview(standings_frame, columns=standings_columns, show='headings', height=15)
+        
+        # 设置列标题和宽度
+        self.standings_tree.heading('排名', text='排名')
+        self.standings_tree.heading('队名', text='队名')
+        self.standings_tree.heading('场次', text='场次')
+        self.standings_tree.heading('胜', text='胜')
+        self.standings_tree.heading('平', text='平')
+        self.standings_tree.heading('负', text='负')
+        self.standings_tree.heading('进球', text='进球')
+        self.standings_tree.heading('失球', text='失球')
+        self.standings_tree.heading('净胜球', text='净胜球')
+        self.standings_tree.heading('积分', text='积分')
+        self.standings_tree.heading('胜率', text='胜率')
+        
+        self.standings_tree.column('排名', width=50, anchor='center')
+        self.standings_tree.column('队名', width=120, anchor='center')
+        self.standings_tree.column('场次', width=50, anchor='center')
+        self.standings_tree.column('胜', width=40, anchor='center')
+        self.standings_tree.column('平', width=40, anchor='center')
+        self.standings_tree.column('负', width=40, anchor='center')
+        self.standings_tree.column('进球', width=50, anchor='center')
+        self.standings_tree.column('失球', width=50, anchor='center')
+        self.standings_tree.column('净胜球', width=60, anchor='center')
+        self.standings_tree.column('积分', width=50, anchor='center')
+        self.standings_tree.column('胜率', width=60, anchor='center')
+        
+        # 滚动条
+        standings_v_scrollbar = ttk.Scrollbar(standings_frame, orient=tk.VERTICAL, command=self.standings_tree.yview)
+        self.standings_tree.configure(yscrollcommand=standings_v_scrollbar.set)
+        
+        # 布局
+        self.standings_tree.grid(row=0, column=0, sticky='nsew')
+        standings_v_scrollbar.grid(row=0, column=1, sticky='ns')
+        
+        standings_frame.grid_rowconfigure(0, weight=1)
+        standings_frame.grid_columnconfigure(0, weight=1)
+        
+    def create_toolbar_old(self):
         """创建工具栏"""
         toolbar_frame = ttk.Frame(self.frame)
         toolbar_frame.pack(fill=tk.X, pady=(0, 10))
@@ -146,204 +317,377 @@ class DataManagementPage(BasePage):
         self.last_update_label = ttk.Label(stats_frame, text="最后更新: 未知")
         self.last_update_label.grid(row=1, column=1, sticky='w', padx=(0, 20), pady=(5, 0))
         
-    def refresh_task_list(self):
-        """刷新任务列表"""
+        # 初始化链接按钮容器
+        self.link_buttons = []
+    
+    def open_link(self, url):
+        """打开链接到浏览器"""
         try:
+            webbrowser.open(url)
+            self.logger.info(f"已打开链接: {url}")
+        except Exception as e:
+            self.logger.error(f"打开链接失败: {e}")
+            self.show_message("错误", f"无法打开链接: {str(e)}", "error")
+    
+    def clear_link_buttons(self):
+        """清空链接按钮"""
+        for button in self.link_buttons:
+            button.destroy()
+        self.link_buttons.clear()
+    
+    def update_link_buttons(self, main_link=None, second_link=None):
+        """更新链接按钮显示"""
+        # 清空现有按钮
+        self.clear_link_buttons()
+        
+        # 获取统计面板的父容器（从已完成标签获取）
+        stats_frame = self.en_names_label.master
+        
+        # 主链接按钮 - 放在第0行第3列
+        if main_link and main_link.strip():
+            main_link_btn = ttk.Button(
+                stats_frame,
+                text="主链接",
+                command=lambda url=main_link: self.open_link(url),
+                width=8
+            )
+            main_link_btn.grid(row=0, column=3, sticky='w', padx=(20, 5))
+            self.link_buttons.append(main_link_btn)
+        
+        # 备用链接按钮 - 放在第0行第4列
+        if second_link and second_link.strip():
+            second_link_btn = ttk.Button(
+                stats_frame,
+                text="备用链接", 
+                command=lambda url=second_link: self.open_link(url),
+                width=8
+            )
+            # 如果没有主链接，备用链接放在第3列；如果有主链接，放在第4列
+            col_position = 3 if not (main_link and main_link.strip()) else 4
+            second_link_btn.grid(row=0, column=col_position, sticky='w', padx=(5, 0))
+            self.link_buttons.append(second_link_btn)
+    
+    # ========== 新的事件处理方法 ==========
+    
+    def refresh_task_data(self):
+        """刷新任务数据"""
+        try:
+            # 清空任务树
+            for item in self.task_tree.get_children():
+                self.task_tree.delete(item)
+            self.all_task_items.clear()
+            
+            # 从数据库加载任务
             with self.get_db_session() as session:
                 tasks = session.query(Task).order_by(Task.created_at.desc()).all()
                 
-                task_values = []
-                self.task_dict = {}
-                
                 for task in tasks:
-                    display_text = f"[{task.id}] {task.league} ({task.year}) - {task.country}"
-                    task_values.append(display_text)
-                    self.task_dict[display_text] = task.id
-                
-                self.task_combo['values'] = task_values
-                if task_values:
-                    self.task_combo.set(task_values[0])
-                    self.on_task_selected()
+                    last_crawl = task.last_crawl_time.strftime('%m-%d %H:%M') if task.last_crawl_time else '未爬取'
                     
-        except Exception as e:
-            self.logger.error(f"刷新任务列表失败: {e}")
-            self.show_message("错误", f"刷新任务列表失败: {str(e)}", "error")
-            
-    def on_task_selected(self, event=None):
-        """任务选择事件处理"""
-        selected_task = self.task_var.get()
-        if not selected_task or selected_task not in self.task_dict:
-            return
-            
-        task_id = self.task_dict[selected_task]
-        self.load_team_data(task_id)
-        
-    def load_team_data(self, task_id):
-        """加载队伍数据"""
-        try:
-            # 清空现有数据
-            for item in self.team_tree.get_children():
-                self.team_tree.delete(item)
-                
-            # 从数据库加载数据
-            with self.get_db_session() as session:
-                teams = session.query(Team).filter(Team.task_id == task_id).order_by(Team.team_code).all()
-                
-                for team in teams:
-                    update_time = team.updated_at.strftime('%m-%d %H:%M') if team.updated_at else ''
-                    self.team_tree.insert('', 'end', values=(
-                        team.team_code,
-                        team.home_name_cn or '',
-                        team.home_name_en or '',
-                        team.league_id,
-                        team.round_num or '',
-                        team.group_id or '',
-                        update_time
+                    item_id = self.task_tree.insert('', 'end', values=(
+                        task.id,
+                        task.league,
+                        task.country, 
+                        task.year,
+                        task.type,
+                        task.group,
+                        last_crawl
                     ))
-                    
-                # 更新统计信息
-                self.update_statistics(teams)
+                    self.all_task_items.append(item_id)
                 
-            self.log_action("加载队伍数据", f"任务ID: {task_id}, 队伍数: {len(teams)}")
+            self.logger.info(f"加载了 {len(tasks)} 个任务")
             
         except Exception as e:
-            self.logger.error(f"加载队伍数据失败: {e}")
-            self.show_message("错误", f"加载数据失败: {str(e)}", "error")
-            
-    def update_statistics(self, teams):
-        """更新统计信息"""
-        total_count = len(teams)
-        cn_names_count = sum(1 for team in teams if team.home_name_cn)
-        en_names_count = sum(1 for team in teams if team.home_name_en)
-        groups_count = len(set(team.group_id for team in teams if team.group_id))
-        
-        last_update = max(team.updated_at for team in teams if team.updated_at) if teams else None
-        last_update_str = last_update.strftime('%Y-%m-%d %H:%M:%S') if last_update else '未知'
-        
-        self.total_teams_label.config(text=f"总队伍数: {total_count}")
-        self.cn_names_label.config(text=f"有中文名: {cn_names_count}")
-        self.en_names_label.config(text=f"有英文名: {en_names_count}")
-        self.groups_label.config(text=f"分组数: {groups_count}")
-        self.last_update_label.config(text=f"最后更新: {last_update_str}")
-        
-    def on_team_double_click(self, event):
-        """队伍双击编辑事件"""
-        selection = self.team_tree.selection()
-        if not selection:
-            return
-            
-        item = self.team_tree.item(selection[0])
-        team_code = item['values'][0]
-        
-        self.show_message("提示", f"队伍编辑功能开发中...\n队伍编码: {team_code}", "info")
-        
-    def on_search_change(self, *args):
-        """搜索框内容变化事件"""
+            self.logger.error(f"刷新任务数据失败: {e}")
+            self.show_message("错误", f"加载任务失败: {str(e)}", "error")
+    
+    def on_task_search_change(self, *args):
+        """任务搜索框内容变化事件"""
         search_text = self.search_var.get().lower()
         
+        # 重新显示所有项目
+        for item in self.all_task_items:
+            try:
+                self.task_tree.reattach(item, '', 'end')
+            except tk.TclError:
+                pass
+        
+        # 如果搜索框为空，显示所有项目
         if not search_text:
-            for item in self.team_tree.get_children():
-                self.team_tree.reattach(item, '', 'end')
             return
-            
-        all_items = self.team_tree.get_children()
-        for item in all_items:
-            values = self.team_tree.item(item)['values']
-            # 在队伍名称中搜索
-            if (search_text in str(values[1]).lower() or 
-                search_text in str(values[2]).lower() or
-                search_text in str(values[0]).lower()):
-                self.team_tree.reattach(item, '', 'end')
-            else:
-                self.team_tree.detach(item)
-                
-    def export_data(self):
-        """导出数据到CSV文件"""
-        try:
-            if not self.task_var.get() or self.task_var.get() not in self.task_dict:
-                self.show_message("提示", "请先选择一个任务", "warning")
-                return
-                
-            # 选择保存文件
-            filename = filedialog.asksaveasfilename(
-                defaultextension=".csv",
-                filetypes=[("CSV文件", "*.csv"), ("所有文件", "*.*")],
-                title="导出队伍数据"
-            )
-            
-            if not filename:
-                return
-                
-            task_id = self.task_dict[self.task_var.get()]
-            
-            with self.get_db_session() as session:
-                teams = session.query(Team).filter(Team.task_id == task_id).all()
-                
-                import csv
-                with open(filename, 'w', newline='', encoding='utf-8-sig') as csvfile:
-                    writer = csv.writer(csvfile)
-                    # 写入表头
-                    writer.writerow(['队伍编码', '中文名称', '繁体名称', '英文名称', '图片路径', 
-                                   '联赛ID', '轮次', '分类ID', '分组ID', '创建时间', '更新时间'])
-                    
-                    # 写入数据
-                    for team in teams:
-                        writer.writerow([
-                            team.team_code,
-                            team.home_name_cn or '',
-                            team.home_name_tw or '',
-                            team.home_name_en or '',
-                            team.image_path or '',
-                            team.league_id,
-                            team.round_num or '',
-                            team.sclass_id or '',
-                            team.group_id or '',
-                            team.created_at.strftime('%Y-%m-%d %H:%M:%S') if team.created_at else '',
-                            team.updated_at.strftime('%Y-%m-%d %H:%M:%S') if team.updated_at else ''
-                        ])
-                        
-            self.show_message("成功", f"数据已导出到: {filename}\n共导出 {len(teams)} 条记录", "info")
-            self.log_action("导出数据", f"文件: {filename}, 记录数: {len(teams)}")
-            
-        except Exception as e:
-            self.logger.error(f"导出数据失败: {e}")
-            self.show_message("错误", f"导出失败: {str(e)}", "error")
-            
-    def import_data(self):
-        """从CSV文件导入数据"""
-        self.show_message("提示", "数据导入功能开发中...", "info")
         
-    def delete_selected_teams(self):
-        """删除选中的队伍"""
-        selection = self.team_tree.selection()
+        # 过滤显示匹配的项目
+        for item in self.all_task_items:
+            try:
+                values = self.task_tree.item(item)['values']
+                # 在所有字段中搜索
+                if any(search_text in str(value).lower() for value in values):
+                    self.task_tree.reattach(item, '', 'end')
+                else:
+                    self.task_tree.detach(item)
+            except tk.TclError:
+                pass
+    
+    def on_task_selected(self, event=None):
+        """任务选择事件处理"""
+        selection = self.task_tree.selection()
         if not selection:
-            self.show_message("提示", "请先选择要删除的队伍", "warning")
+            self.current_task_id = None
+            self.clear_data_displays()
             return
-            
-        # 确认删除
-        team_codes = [self.team_tree.item(item)['values'][0] for item in selection]
         
-        if not messagebox.askyesno(
-            "确认删除", 
-            f"确定要删除选中的 {len(team_codes)} 个队伍吗？\n\n此操作无法恢复！"
-        ):
-            return
-            
+        # 获取选中的任务ID
+        item = self.task_tree.item(selection[0])
+        self.current_task_id = item['values'][0]
+        
+        # 加载轮次选择
+        self.load_rounds_for_task(self.current_task_id)
+        
+        # 加载数据
+        self.load_match_and_standings_data()
+    
+    def load_rounds_for_task(self, task_id):
+        """为选定任务加载轮次选择"""
         try:
             with self.get_db_session() as session:
-                for team_code in team_codes:
-                    team = session.query(Team).filter(Team.team_code == team_code).first()
-                    if team:
-                        session.delete(team)
-                        
-                session.commit()
+                # 查询该任务的所有轮次
+                rounds = session.query(Match.round_num).filter(
+                    Match.task_id == task_id
+                ).distinct().order_by(Match.round_num).all()
                 
-            self.show_message("成功", f"已删除 {len(team_codes)} 个队伍", "info")
-            self.log_action("删除队伍", f"数量: {len(team_codes)}")
-            
-            # 刷新数据
-            self.on_task_selected()
-            
+                round_values = ['全部轮次'] + [f"第{r[0]}轮" for r in rounds if r[0]]
+                self.round_combo['values'] = round_values
+                
+                if round_values:
+                    self.round_combo.set(round_values[0])
+                    self.current_round = None  # 全部轮次
+                    
         except Exception as e:
-            self.logger.error(f"删除队伍失败: {e}")
-            self.show_message("错误", f"删除失败: {str(e)}", "error")
+            self.logger.error(f"加载轮次失败: {e}")
+            self.round_combo['values'] = ['全部轮次']
+            self.round_combo.set('全部轮次')
+    
+    def on_round_selected(self, event=None):
+        """轮次选择事件处理"""
+        round_text = self.round_var.get()
+        if round_text == '全部轮次':
+            self.current_round = None
+        else:
+            # 提取轮次数字，如 "第1轮" -> 1
+            import re
+            match = re.search(r'第(\d+)轮', round_text)
+            self.current_round = int(match.group(1)) if match else None
+        
+        # 重新加载数据
+        self.load_match_and_standings_data()
+    
+    def on_standings_type_changed(self, event=None):
+        """积分榜类型变化事件处理"""
+        # 重新加载积分榜数据
+        self.load_standings_data()
+    
+    def load_match_and_standings_data(self):
+        """加载赛程和积分榜数据"""
+        if not self.current_task_id:
+            return
+        
+        self.load_match_data()
+        self.load_standings_data()
+        self.update_statistics_new()
+    
+    def load_match_data(self):
+        """加载赛程数据"""
+        try:
+            # 清空赛程表
+            for item in self.match_tree.get_children():
+                self.match_tree.delete(item)
+            
+            with self.get_db_session() as session:
+                # 构建查询
+                query = session.query(Match, Team.home_name_cn.label('home_name'), Team.home_name_cn.label('away_name')).join(
+                    Team, (Match.home_team_code == Team.team_code) & (Match.task_id == Team.task_id)
+                ).filter(Match.task_id == self.current_task_id)
+                
+                # 如果选择了特定轮次
+                if self.current_round:
+                    query = query.filter(Match.round_num == self.current_round)
+                
+                matches = query.order_by(Match.round_num, Match.match_time).all()
+                
+                # 需要获取客队名称
+                for match_data, home_name, _ in matches:
+                    # 获取客队名称
+                    away_team = session.query(Team).filter(
+                        Team.team_code == match_data.away_team_code,
+                        Team.task_id == self.current_task_id
+                    ).first()
+                    away_name = away_team.home_name_cn if away_team else f"队伍{match_data.away_team_code}"
+                    
+                    # 格式化比分
+                    if match_data.full_score:
+                        score = match_data.full_score
+                    else:
+                        score = "vs"
+                    
+                    # 格式化时间（match_time是字符串格式）
+                    if match_data.match_time:
+                        # 如果是字符串格式 "2023-08-25 23:59"，提取月日时分
+                        try:
+                            if isinstance(match_data.match_time, str) and len(match_data.match_time) >= 16:
+                                # 从 "2023-08-25 23:59" 提取 "08-25 23:59"
+                                match_time = match_data.match_time[5:]  # 去掉年份部分
+                            else:
+                                match_time = str(match_data.match_time)
+                        except:
+                            match_time = str(match_data.match_time)
+                    else:
+                        match_time = '待定'
+                    
+                    # 状态判断
+                    status = "已结束" if match_data.full_score else "未开始"
+                    
+                    self.match_tree.insert('', 'end', values=(
+                        f"第{match_data.round_num}轮",
+                        match_time,
+                        home_name or f"队伍{match_data.home_team_code}",
+                        score,
+                        away_name,
+                        status
+                    ))
+                    
+        except Exception as e:
+            self.logger.error(f"加载赛程数据失败: {e}")
+            self.show_message("错误", f"加载赛程失败: {str(e)}", "error")
+    
+    def load_standings_data(self):
+        """加载积分榜数据"""
+        try:
+            # 清空积分榜
+            for item in self.standings_tree.get_children():
+                self.standings_tree.delete(item)
+            
+            if not self.current_task_id:
+                return
+            
+            # 获取积分榜类型映射
+            type_mapping = {
+                "总积分榜": "total",
+                "主场积分榜": "home", 
+                "客场积分榜": "away"
+            }
+            standings_category = type_mapping.get(self.standings_type_var.get(), "total")
+            
+            with self.get_db_session() as session:
+                # 构建查询
+                query = session.query(Standings, Team.home_name_cn).join(
+                    Team, (Standings.team_code == Team.team_code) & (Standings.task_id == Team.task_id)
+                ).filter(
+                    Standings.task_id == self.current_task_id,
+                    Standings.standings_category == standings_category
+                )
+                
+                # 如果选择了特定轮次
+                if self.current_round:
+                    query = query.filter(Standings.round_num == self.current_round)
+                else:
+                    # 选择最新轮次的数据
+                    latest_round = session.query(
+                        func.max(Standings.round_num)
+                    ).filter(
+                        Standings.task_id == self.current_task_id,
+                        Standings.standings_category == standings_category
+                    ).scalar()
+                    
+                    if latest_round:
+                        query = query.filter(Standings.round_num == latest_round)
+                
+                standings_data = query.order_by(Standings.points.desc(), Standings.goal_diff.desc()).all()
+                
+                # 填充积分榜
+                for rank, (standing, team_name) in enumerate(standings_data, 1):
+                    self.standings_tree.insert('', 'end', values=(
+                        rank,
+                        team_name or f"队伍{standing.team_code}",
+                        standing.games,
+                        standing.wins,
+                        standing.draws,
+                        standing.losses,
+                        standing.goals_for,
+                        standing.goals_against,
+                        standing.goal_diff,
+                        standing.points,
+                        standing.win_pct
+                    ))
+                    
+        except Exception as e:
+            self.logger.error(f"加载积分榜数据失败: {e}")
+            self.show_message("错误", f"加载积分榜失败: {str(e)}", "error")
+    
+    def clear_data_displays(self):
+        """清空数据显示"""
+        # 清空赛程表
+        for item in self.match_tree.get_children():
+            self.match_tree.delete(item)
+        
+        # 清空积分榜
+        for item in self.standings_tree.get_children():
+            self.standings_tree.delete(item)
+        
+        # 清空轮次选择
+        self.round_combo['values'] = []
+        self.round_var.set('')
+        
+        # 清空链接按钮
+        self.clear_link_buttons()
+    
+    def update_statistics_new(self):
+        """更新统计信息"""
+        if not self.current_task_id:
+            self.total_teams_label.config(text="总队伍数: 0")
+            self.cn_names_label.config(text="比赛场次: 0")
+            self.en_names_label.config(text="已完成: 0")
+            self.groups_label.config(text="积分榜类型: 未选择")
+            self.last_update_label.config(text="最后更新: 未知")
+            self.clear_link_buttons()
+            return
+        
+        try:
+            with self.get_db_session() as session:
+                # 获取当前任务信息
+                current_task = session.query(Task).filter(Task.id == self.current_task_id).first()
+                
+                # 统计队伍数
+                team_count = session.query(Team).filter(Team.task_id == self.current_task_id).count()
+                
+                # 统计比赛场次
+                match_count = session.query(Match).filter(Match.task_id == self.current_task_id).count()
+                
+                # 统计已完成比赛
+                finished_count = session.query(Match).filter(
+                    Match.task_id == self.current_task_id,
+                    Match.full_score.isnot(None)
+                ).count()
+                
+                # 获取最后更新时间
+                last_update = session.query(func.max(Match.updated_at)).filter(
+                    Match.task_id == self.current_task_id
+                ).scalar()
+                
+                last_update_str = last_update.strftime('%Y-%m-%d %H:%M:%S') if last_update else '未知'
+                
+                # 在会话内提取链接值，避免DetachedInstanceError
+                main_link = current_task.link if current_task else None
+                second_link = current_task.link_second if current_task else None
+                
+                # 更新显示
+                self.total_teams_label.config(text=f"总队伍数: {team_count}")
+                self.cn_names_label.config(text=f"比赛场次: {match_count}")
+                self.en_names_label.config(text=f"已完成: {finished_count}")
+                self.groups_label.config(text=f"积分榜类型: {self.standings_type_var.get()}")
+                self.last_update_label.config(text=f"最后更新: {last_update_str}")
+                
+                # 更新链接按钮（传递字符串而不是对象）
+                self.update_link_buttons(main_link, second_link)
+                
+        except Exception as e:
+            self.logger.error(f"更新统计信息失败: {e}")

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-批量导入页面 - 提供 Task 模型的批量数据导入界面
+批量导入页面 - 提供 Task 模型的批量数据导入界面（重新设计布局）
 """
 
 import tkinter as tk
@@ -10,133 +10,149 @@ import os
 from datetime import datetime
 
 from .base_page import BasePage
-from models import Task
+from models import Task, Team, JsDataRaw, Standings
 
 
 class BatchImportPage(BasePage):
     """批量导入页面 - 任务批量导入功能"""
     
+    def setup_scrollable_container(self):
+        """设置可滚动的容器"""
+        # 创建Canvas和滚动条
+        self.canvas = tk.Canvas(self.frame)
+        self.v_scrollbar = ttk.Scrollbar(self.frame, orient=tk.VERTICAL, command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.v_scrollbar.set)
+        
+        # 创建可滚动的框架
+        self.scrollable_frame = ttk.Frame(self.canvas)
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        
+        # 布局Canvas和滚动条
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 绑定事件
+        self.scrollable_frame.bind('<Configure>', self.on_frame_configure)
+        self.canvas.bind('<Configure>', self.on_canvas_configure)
+        self.canvas.bind_all('<MouseWheel>', self.on_mousewheel)
+    
+    def on_frame_configure(self, event):
+        """当内部框架大小改变时更新滚动区域"""
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+    
+    def on_canvas_configure(self, event):
+        """当Canvas大小改变时调整内部框架宽度"""
+        canvas_width = event.width
+        self.canvas.itemconfig(self.canvas_window, width=canvas_width)
+    
+    def on_mousewheel(self, event):
+        """鼠标滚轮事件"""
+        self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+    
     def setup_ui(self):
         """设置批量导入页面的用户界面"""
+        # 创建可滚动的主容器
+        self.setup_scrollable_container()
+        
         # 页面标题
         title_label = ttk.Label(
-            self.frame, 
+            self.scrollable_frame, 
             text="批量导入", 
             font=('Arial', 16, 'bold')
         )
-        title_label.pack(pady=(0, 20))
+        title_label.pack(pady=(0, 15))
         
-        # 样例下载区域
-        self.setup_sample_download_area()
-        
-        # 文件选择区域
-        self.setup_file_selection_area()
+        # 文件选择和控制区域（置顶）
+        self.setup_file_and_import_area()
         
         # 数据预览区域
         self.setup_preview_area()
         
-        # 导入执行区域
-        self.setup_import_area()
+        # 样例下载区域（底部，紧凑）
+        self.setup_sample_download_area()
         
         # 初始化变量
         self.current_data = None
         self.validation_results = []
+        self.duplicate_results = []
     
-    def setup_sample_download_area(self):
-        """设置样例下载区域"""
-        sample_frame = ttk.LabelFrame(self.frame, text="样例文件下载", padding=15)
-        sample_frame.pack(fill=tk.X, pady=(0, 15))
+    def setup_file_and_import_area(self):
+        """设置文件选择和导入控制区域（合并顶部区域）"""
+        # 主控制框架
+        control_frame = ttk.LabelFrame(self.scrollable_frame, text="文件导入", padding=15)
+        control_frame.pack(fill=tk.X, pady=(0, 15))
         
-        # 说明文本
-        desc_label = ttk.Label(
-            sample_frame, 
-            text="下载样例文件来了解正确的导入格式：",
-            font=('Arial', 10)
-        )
-        desc_label.pack(anchor='w', pady=(0, 10))
+        # 创建左右分栏
+        main_frame = ttk.Frame(control_frame)
+        main_frame.pack(fill=tk.X)
         
-        # 按钮区域
-        btn_frame = ttk.Frame(sample_frame)
-        btn_frame.pack(fill=tk.X)
+        # 左侧：文件路径输入
+        left_frame = ttk.Frame(main_frame)
+        left_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 15))
         
-        # Excel样例下载按钮
-        excel_btn = ttk.Button(
-            btn_frame,
-            text="下载 Excel 样例",
-            command=self.download_excel_sample,
-            width=20
-        )
-        excel_btn.pack(side=tk.LEFT, padx=(0, 10))
-        
-        # TXT样例下载按钮
-        txt_csv_btn = ttk.Button(
-            btn_frame,
-            text="下载 CSV 样例",
-            command=self.download_csv_sample,
-            width=20
-        )
-        txt_csv_btn.pack(side=tk.LEFT, padx=10)
-        
-        # TAB分隔符样例下载按钮
-        txt_tab_btn = ttk.Button(
-            btn_frame,
-            text="下载 TAB 样例",
-            command=self.download_tab_sample,
-            width=20
-        )
-        txt_tab_btn.pack(side=tk.LEFT, padx=10)
-        
-        # 格式说明
-        format_info = ttk.Label(
-            sample_frame,
-            text="必填字段：赛事级别*, 赛事名称*, 国家/地区*, 联赛名称*, 赛事类型*, 赛事年份*",
-            font=('Arial', 9),
-            foreground='blue'
-        )
-        format_info.pack(anchor='w', pady=(10, 0))
-    
-    def setup_file_selection_area(self):
-        """设置文件选择区域"""
-        file_frame = ttk.LabelFrame(self.frame, text="选择导入文件", padding=15)
+        # 文件选择行
+        file_frame = ttk.Frame(left_frame)
         file_frame.pack(fill=tk.X, pady=(0, 15))
         
-        # 文件路径显示
-        path_frame = ttk.Frame(file_frame)
-        path_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        ttk.Label(path_frame, text="文件路径:").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(file_frame, text="文件路径:", width=8).pack(side=tk.LEFT, padx=(0, 5))
         
         self.file_path_var = tk.StringVar()
         self.file_path_entry = ttk.Entry(
-            path_frame, 
+            file_frame, 
             textvariable=self.file_path_var,
-            state='readonly',
-            width=50
+            state='readonly'
         )
-        self.file_path_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+        self.file_path_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # 状态显示行
+        status_frame = ttk.Frame(left_frame)
+        status_frame.pack(fill=tk.X)
+        
+        self.status_label = ttk.Label(
+            status_frame, 
+            text="请选择要导入的文件",
+            font=('Arial', 10),
+            foreground='blue'
+        )
+        self.status_label.pack(side=tk.LEFT)
+        
+        # 右侧：按钮列
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(side=tk.RIGHT)
         
         # 浏览按钮
         browse_btn = ttk.Button(
-            path_frame,
+            button_frame,
             text="浏览文件",
             command=self.browse_file,
-            width=12
+            width=15
         )
-        browse_btn.pack(side=tk.RIGHT)
+        browse_btn.pack(pady=(0, 8))
         
         # 解析按钮
         parse_btn = ttk.Button(
-            file_frame,
+            button_frame,
             text="解析文件",
             command=self.parse_file,
             width=15
         )
-        parse_btn.pack(pady=(0, 0))
+        parse_btn.pack(pady=(0, 8))
+        
+        # 导入按钮（突出显示）
+        self.import_btn = ttk.Button(
+            button_frame,
+            text="📥 执行批量导入",
+            command=self.execute_import,
+            width=15,
+            state='disabled'
+        )
+        self.import_btn.pack()
+    
     
     def setup_preview_area(self):
         """设置数据预览区域"""
-        preview_frame = ttk.LabelFrame(self.frame, text="数据预览", padding=15)
-        preview_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        preview_frame = ttk.LabelFrame(self.scrollable_frame, text="数据预览", padding=15)
+        preview_frame.pack(fill=tk.X, pady=(0, 15))
         
         # 创建Treeview表格
         columns = ['level', 'event', 'country', 'league', 'type', 'year', 'group', 'link', 'link_second']
@@ -163,29 +179,141 @@ class BatchImportPage(BasePage):
         preview_frame.grid_rowconfigure(0, weight=1)
         preview_frame.grid_columnconfigure(0, weight=1)
         
-        # 验证结果显示
-        self.validation_text = tk.Text(preview_frame, height=4, state='disabled')
-        self.validation_text.grid(row=2, column=0, columnspan=2, sticky='ew', pady=(10, 0))
-    
-    def setup_import_area(self):
-        """设置导入执行区域"""
-        import_frame = ttk.Frame(self.frame)
-        import_frame.pack(fill=tk.X, pady=10)
+        # 验证结果显示（自动调整高度）
+        self.validation_text = tk.Text(preview_frame, height=1, state='disabled', wrap=tk.WORD)
         
-        # 导入按钮
-        self.import_btn = ttk.Button(
-            import_frame,
-            text="执行批量导入",
-            command=self.execute_import,
-            width=15,
-            state='disabled'
+        # 添加验证结果文本框的滚动条
+        validation_scrollbar = ttk.Scrollbar(preview_frame, orient=tk.VERTICAL, command=self.validation_text.yview)
+        self.validation_text.configure(yscrollcommand=validation_scrollbar.set)
+        
+        self.validation_text.grid(row=2, column=0, sticky='ew', pady=(10, 0))
+        validation_scrollbar.grid(row=2, column=1, sticky='ns', pady=(10, 0))
+    
+    def setup_sample_download_area(self):
+        """设置样例下载区域（底部紧凑版）"""
+        sample_frame = ttk.LabelFrame(self.scrollable_frame, text="导入格式说明", padding=10)
+        sample_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        # 格式说明
+        format_info = ttk.Label(
+            sample_frame,
+            text="必填字段：赛事级别*, 赛事名称*, 国家/地区*, 联赛名称*, 赛事类型*, 赛事年份* | 支持格式：Excel(.xlsx), CSV(.csv), TAB分隔(.txt)",
+            font=('Arial', 9),
+            foreground='#666666'
         )
-        self.import_btn.pack(side=tk.LEFT, padx=(0, 10))
+        format_info.pack(anchor='w', pady=(0, 10))
         
-        # 状态显示
-        self.status_label = ttk.Label(import_frame, text="请先选择并解析文件")
-        self.status_label.pack(side=tk.LEFT, padx=10)
+        # 样例下载按钮行
+        sample_btn_frame = ttk.Frame(sample_frame)
+        sample_btn_frame.pack(fill=tk.X)
+        
+        ttk.Label(sample_btn_frame, text="样例下载:", font=('Arial', 9)).pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Excel样例按钮
+        excel_btn = ttk.Button(
+            sample_btn_frame,
+            text="Excel样例",
+            command=self.download_excel_sample,
+            width=12
+        )
+        excel_btn.pack(side=tk.LEFT, padx=(0, 8))
+        
+        # CSV样例按钮
+        csv_btn = ttk.Button(
+            sample_btn_frame,
+            text="CSV样例",
+            command=self.download_csv_sample,
+            width=12
+        )
+        csv_btn.pack(side=tk.LEFT, padx=(0, 8))
+        
+        # TAB样例按钮
+        tab_btn = ttk.Button(
+            sample_btn_frame,
+            text="TAB样例",
+            command=self.download_tab_sample,
+            width=12
+        )
+        tab_btn.pack(side=tk.LEFT)
     
+    def browse_file(self):
+        """浏览选择导入文件"""
+        file_path = filedialog.askopenfilename(
+            title="选择导入文件",
+            filetypes=[
+                ("支持的文件", "*.xlsx;*.xls;*.txt;*.csv"),
+                ("Excel文件", "*.xlsx;*.xls"),
+                ("文本文件", "*.txt;*.csv"),
+                ("所有文件", "*.*")
+            ]
+        )
+        
+        if file_path:
+            self.file_path_var.set(file_path)
+            self.log_action("选择文件", f"文件路径: {file_path}")
+    
+    def parse_file(self):
+        """解析导入文件"""
+        file_path = self.file_path_var.get()
+        if not file_path:
+            self.show_message("提示", "请先选择要导入的文件", "warning")
+            return
+        
+        if not os.path.exists(file_path):
+            self.show_message("错误", "文件不存在", "error")
+            return
+        
+        try:
+            # 根据文件扩展名选择解析方式
+            file_ext = os.path.splitext(file_path)[1].lower()
+            
+            if file_ext in ['.xlsx', '.xls']:
+                df = pd.read_excel(file_path)
+                separator_used = "Excel格式"
+            elif file_ext in ['.txt', '.csv']:
+                # 智能检测分隔符
+                df, separator_used = self.detect_separator_and_parse(file_path)
+            else:
+                self.show_message("错误", "不支持的文件格式", "error")
+                return
+            
+            # 标准化列名
+            df = self.normalize_column_names(df)
+            
+            # 验证数据
+            self.current_data = df
+            validation_results = self.validate_data(df)
+            
+            # 检测重复数据
+            duplicate_results = self.detect_duplicates_in_file(df)
+            self.duplicate_results = duplicate_results
+            
+            # 显示预览
+            self.display_preview(df)
+            self.display_validation_results(validation_results, duplicate_results)
+            
+            # 启用导入按钮
+            if all(result['valid'] for result in validation_results):
+                self.import_btn.config(state='normal')
+                self.status_label.config(
+                    text=f"✅ 数据验证通过，共 {len(df)} 条记录 ({separator_used})，可以导入",
+                    foreground='green'
+                )
+            else:
+                self.import_btn.config(state='disabled')
+                self.status_label.config(
+                    text="❌ 数据验证失败，请检查错误信息",
+                    foreground='red'
+                )
+            
+            self.log_action("解析文件", f"成功解析 {len(df)} 条记录，使用{separator_used}")
+            
+        except Exception as e:
+            self.logger.error(f"解析文件失败: {e}")
+            self.show_message("错误", f"解析失败: {str(e)}", "error")
+            self.status_label.config(text="文件解析失败")
+
+    # 保持原有的其他方法不变
     def download_excel_sample(self):
         """下载Excel样例文件"""
         try:
@@ -270,73 +398,6 @@ class BatchImportPage(BasePage):
             self.logger.error(f"下载TAB样例失败: {e}")
             self.show_message("错误", f"下载失败: {str(e)}", "error")
     
-    def browse_file(self):
-        """浏览选择导入文件"""
-        file_path = filedialog.askopenfilename(
-            title="选择导入文件",
-            filetypes=[
-                ("支持的文件", "*.xlsx;*.xls;*.txt;*.csv"),
-                ("Excel文件", "*.xlsx;*.xls"),
-                ("文本文件", "*.txt;*.csv"),
-                ("所有文件", "*.*")
-            ]
-        )
-        
-        if file_path:
-            self.file_path_var.set(file_path)
-            self.log_action("选择文件", f"文件路径: {file_path}")
-    
-    def parse_file(self):
-        """解析导入文件"""
-        file_path = self.file_path_var.get()
-        if not file_path:
-            self.show_message("提示", "请先选择要导入的文件", "warning")
-            return
-        
-        if not os.path.exists(file_path):
-            self.show_message("错误", "文件不存在", "error")
-            return
-        
-        try:
-            # 根据文件扩展名选择解析方式
-            file_ext = os.path.splitext(file_path)[1].lower()
-            
-            if file_ext in ['.xlsx', '.xls']:
-                df = pd.read_excel(file_path)
-                separator_used = "Excel格式"
-            elif file_ext in ['.txt', '.csv']:
-                # 智能检测分隔符
-                df, separator_used = self.detect_separator_and_parse(file_path)
-            else:
-                self.show_message("错误", "不支持的文件格式", "error")
-                return
-            
-            # 标准化列名
-            df = self.normalize_column_names(df)
-            
-            # 验证数据
-            self.current_data = df
-            validation_results = self.validate_data(df)
-            
-            # 显示预览
-            self.display_preview(df)
-            self.display_validation_results(validation_results)
-            
-            # 启用导入按钮
-            if all(result['valid'] for result in validation_results):
-                self.import_btn.config(state='normal')
-                self.status_label.config(text=f"数据验证通过，共 {len(df)} 条记录 ({separator_used})")
-            else:
-                self.import_btn.config(state='disabled')
-                self.status_label.config(text="数据验证失败，请检查错误信息")
-            
-            self.log_action("解析文件", f"成功解析 {len(df)} 条记录，使用{separator_used}")
-            
-        except Exception as e:
-            self.logger.error(f"解析文件失败: {e}")
-            self.show_message("错误", f"解析失败: {str(e)}", "error")
-            self.status_label.config(text="文件解析失败")
-    
     def validate_data(self, df):
         """验证导入数据"""
         results = []
@@ -416,8 +477,8 @@ class BatchImportPage(BasePage):
             note_values = ['...', f'共{len(df)}条记录', '仅显示前50条', '...', '...', '...', '...', '...', '...']
             self.preview_tree.insert('', 'end', values=note_values)
     
-    def display_validation_results(self, results):
-        """显示验证结果"""
+    def display_validation_results(self, results, duplicate_results=None):
+        """显示验证结果和重复检测结果"""
         self.validation_text.config(state='normal')
         self.validation_text.delete(1.0, tk.END)
         
@@ -427,22 +488,131 @@ class BatchImportPage(BasePage):
         invalid_rows = total_rows - valid_rows
         
         # 显示统计信息
-        summary = f"验证结果: 总计 {total_rows} 行，通过 {valid_rows} 行，失败 {invalid_rows} 行\n\n"
+        summary = f"验证结果: 总计 {total_rows} 行，通过 {valid_rows} 行，失败 {invalid_rows} 行\n"
         self.validation_text.insert(tk.END, summary)
         
-        # 显示错误信息（仅显示前20个错误）
-        error_results = [r for r in results if not r['valid']][:20]
-        for result in error_results:
-            self.validation_text.insert(tk.END, result['message'] + '\n')
+        # 显示重复检测结果
+        if duplicate_results:
+            total_duplicate_rows = sum(dup['count'] for dup in duplicate_results)
+            unique_combinations = len(duplicate_results)
+            
+            self.validation_text.insert(tk.END, f"\n⚠️ 发现文件内重复数据:\n")
+            self.validation_text.insert(tk.END, f"重复组合: {unique_combinations} 组，影响 {total_duplicate_rows} 条记录\n\n")
+            
+            # 显示前10组重复详情
+            displayed_count = 0
+            for dup in duplicate_results[:10]:
+                displayed_count += 1
+                row_nums_str = ', '.join(map(str, dup['row_numbers']))
+                self.validation_text.insert(tk.END, 
+                    f"第{displayed_count}组: {dup['league']}-{dup['year']}-{dup['group']} (行号: {row_nums_str})\n")
+            
+            if len(duplicate_results) > 10:
+                self.validation_text.insert(tk.END, f"... 还有 {len(duplicate_results) - 10} 组重复未显示\n")
+            
+            self.validation_text.insert(tk.END, "\n📝 导入时将保留每组的最后一条记录，前面的记录会被覆盖。\n\n")
+        else:
+            self.validation_text.insert(tk.END, "\n✅ 未发现文件内重复数据\n\n")
         
-        if len(error_results) < invalid_rows:
-            self.validation_text.insert(tk.END, f"... 还有 {invalid_rows - len(error_results)} 个错误未显示\n")
+        # 显示错误信息（仅显示前20个错误）
+        if invalid_rows > 0:
+            self.validation_text.insert(tk.END, "验证错误详情:\n")
+            error_results = [r for r in results if not r['valid']][:20]
+            for result in error_results:
+                self.validation_text.insert(tk.END, result['message'] + '\n')
+            
+            if len(error_results) < invalid_rows:
+                self.validation_text.insert(tk.END, f"... 还有 {invalid_rows - len(error_results)} 个错误未显示\n")
         
         self.validation_text.config(state='disabled')
         self.validation_results = results
+        
+        # 自动调整文本框高度
+        self.auto_resize_validation_text()
     
+    def auto_resize_validation_text(self):
+        """自动调整验证结果文本框的高度"""
+        # 获取文本内容的行数
+        content = self.validation_text.get(1.0, tk.END)
+        line_count = content.count('\n')
+        
+        # 设置最小和最大高度
+        min_height = 3
+        max_height = 15
+        
+        # 根据内容调整高度，但限制在最小和最大值之间
+        new_height = max(min_height, min(line_count + 1, max_height))
+        
+        # 更新文本框高度
+        self.validation_text.config(height=new_height)
+        
+        # 更新滚动区域（如果内容需要滚动的话）
+        if hasattr(self, 'canvas'):
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+    
+    def has_core_field_changes(self, existing_task, new_data):
+        """检测是否有核心字段变更"""
+        core_fields = ['level', 'event', 'country', 'league', 'type', 'year', 'group', 'link', 'link_second']
+        changes = []
+        
+        for field in core_fields:
+            # 获取新值
+            if field == 'level':
+                new_value = int(new_data['level'])
+            elif field in ['link', 'link_second']:
+                new_value = str(new_data.get(field, '')) if not pd.isna(new_data.get(field)) else None
+                # 处理空字符串
+                if new_value == '':
+                    new_value = None
+            else:
+                new_value = str(new_data[field]) if not pd.isna(new_data[field]) else None
+            
+            # 获取现有值
+            existing_value = getattr(existing_task, field)
+            
+            # 比较值
+            if existing_value != new_value:
+                changes.append(f"{field}: '{existing_value}' -> '{new_value}'")
+        
+        return len(changes) > 0, changes
+    
+    def clear_related_data(self, session, task_id):
+        """清空指定任务的关联数据"""
+        try:
+            # 删除 teams 数据
+            session.query(Team).filter_by(task_id=task_id).delete()
+            # 删除 js_data_raw 数据
+            session.query(JsDataRaw).filter_by(task_id=task_id).delete()
+            # 删除 standings 数据
+            session.query(Standings).filter_by(task_id=task_id).delete()
+            
+            self.logger.info(f"已清空任务 {task_id} 的关联数据")
+        except Exception as e:
+            self.logger.error(f"清空任务 {task_id} 关联数据失败: {e}")
+            raise
+    
+    def update_task_fields(self, existing_task, new_data, group):
+        """更新任务字段"""
+        existing_task.level = int(new_data['level'])
+        existing_task.event = str(new_data['event'])
+        existing_task.country = str(new_data['country'])
+        existing_task.league = str(new_data['league'])
+        existing_task.type = str(new_data['type'])
+        existing_task.year = str(new_data['year'])
+        existing_task.group = str(group)
+        
+        # 处理 link 字段
+        link_value = str(new_data.get('link', '')) if not pd.isna(new_data.get('link')) else None
+        existing_task.link = link_value if link_value != '' else None
+        
+        # 处理 link_second 字段
+        link_second_value = str(new_data.get('link_second', '')) if not pd.isna(new_data.get('link_second')) else None
+        existing_task.link_second = link_second_value if link_second_value != '' else None
+        
+        # updated_at 会自动更新
+
     def execute_import(self):
-        """执行批量导入"""
+        """执行批量导入（支持更新模式）"""
         if self.current_data is None:
             self.show_message("提示", "请先选择并解析文件", "warning")
             return
@@ -453,9 +623,16 @@ class BatchImportPage(BasePage):
             return
         
         try:
-            success_count = 0
+            insert_count = 0  # 新增记录数
+            major_update_count = 0  # 重要更新数（清空关联数据）
+            minor_update_count = 0  # 一般更新数（仅更新字段）
             error_count = 0
-            duplicate_count = 0
+            
+            # 计算文件内重复统计
+            file_duplicate_count = 0
+            if self.duplicate_results:
+                file_duplicate_count = sum(dup['count'] for dup in self.duplicate_results) - len(self.duplicate_results)
+                # 减去每组保留的最后一条，剩下的就是被覆盖的数量
             
             with self.get_db_session() as session:
                 for index, row in self.current_data.iterrows():
@@ -465,45 +642,75 @@ class BatchImportPage(BasePage):
                         if pd.isna(group) or str(group).strip() == '':
                             group = '默认组'
                         
-                        # 创建任务对象
-                        task = Task(
-                            level=int(row['level']),
-                            event=str(row['event']),
-                            country=str(row['country']),
+                        # 查找现有记录
+                        existing_task = session.query(Task).filter_by(
                             league=str(row['league']),
-                            type=str(row['type']),
                             year=str(row['year']),
-                            group=str(group),
-                            link=str(row.get('link', '')) if not pd.isna(row.get('link')) else None,
-                            link_second=str(row.get('link_second', '')) if not pd.isna(row.get('link_second')) else None
-                        )
+                            group=str(group)
+                        ).first()
                         
-                        session.add(task)
-                        session.flush()  # 刷新以获取可能的约束冲突
-                        success_count += 1
+                        if existing_task:
+                            # 检查是否有核心字段变更
+                            has_changes, change_details = self.has_core_field_changes(existing_task, row)
+                            
+                            if has_changes:
+                                # 清空关联数据
+                                self.clear_related_data(session, existing_task.id)
+                                # 更新任务字段
+                                self.update_task_fields(existing_task, row, group)
+                                major_update_count += 1
+                                self.logger.info(f"第{index + 1}行重要更新: {row['league']}-{row['year']}-{group}, 变更: {'; '.join(change_details)}")
+                            else:
+                                # 只是一般更新
+                                self.update_task_fields(existing_task, row, group)
+                                minor_update_count += 1
+                                self.logger.debug(f"第{index + 1}行一般更新: {row['league']}-{row['year']}-{group}")
+                        else:
+                            # 创建新任务
+                            new_task = Task(
+                                level=int(row['level']),
+                                event=str(row['event']),
+                                country=str(row['country']),
+                                league=str(row['league']),
+                                type=str(row['type']),
+                                year=str(row['year']),
+                                group=str(group),
+                                link=str(row.get('link', '')) if not pd.isna(row.get('link')) and str(row.get('link', '')) != '' else None,
+                                link_second=str(row.get('link_second', '')) if not pd.isna(row.get('link_second')) and str(row.get('link_second', '')) != '' else None
+                            )
+                            session.add(new_task)
+                            insert_count += 1
+                            self.logger.info(f"第{index + 1}行新增: {row['league']}-{row['year']}-{group}")
                         
                     except Exception as e:
-                        error_msg = str(e)
-                        if 'UNIQUE constraint failed' in error_msg:
-                            duplicate_count += 1
-                            self.logger.warning(f"第{index + 1}行重复数据跳过: {row['league']}-{row['year']}-{group}")
-                        else:
-                            error_count += 1
-                            self.logger.error(f"第{index + 1}行导入失败: {e}")
+                        error_count += 1
+                        self.logger.error(f"第{index + 1}行处理失败: {e}")
                 
                 # 提交事务
                 session.commit()
             
             # 显示导入结果
-            result_msg = f"导入完成！成功: {success_count}, 重复跳过: {duplicate_count}, 错误: {error_count}"
+            result_parts = [f"新增: {insert_count}条", f"重要更新: {major_update_count}条", f"一般更新: {minor_update_count}条"]
+            if file_duplicate_count > 0:
+                result_parts.append(f"文件内重复: {file_duplicate_count}条")
+            if error_count > 0:
+                result_parts.append(f"错误: {error_count}条")
+            
+            result_msg = "导入完成！" + ", ".join(result_parts)
             self.show_message("导入结果", result_msg, "info" if error_count == 0 else "warning")
-            self.status_label.config(text=result_msg)
+            self.status_label.config(text=result_msg, foreground='green')
             
             # 记录日志
-            self.log_action("批量导入", f"成功{success_count}条，重复{duplicate_count}条，错误{error_count}条")
+            log_parts = [f"新增{insert_count}条", f"重要更新{major_update_count}条", f"一般更新{minor_update_count}条"]
+            if file_duplicate_count > 0:
+                log_parts.append(f"文件内重复{file_duplicate_count}条")
+            if error_count > 0:
+                log_parts.append(f"错误{error_count}条")
+            
+            self.log_action("批量导入", "，".join(log_parts))
             
             # 清空数据
-            if success_count > 0:
+            if insert_count > 0 or major_update_count > 0 or minor_update_count > 0:
                 self.clear_import_data()
             
         except Exception as e:
@@ -515,6 +722,7 @@ class BatchImportPage(BasePage):
         self.file_path_var.set("")
         self.current_data = None
         self.validation_results = []
+        self.duplicate_results = []
         
         # 清空预览
         for item in self.preview_tree.get_children():
@@ -527,7 +735,7 @@ class BatchImportPage(BasePage):
         
         # 禁用导入按钮
         self.import_btn.config(state='disabled')
-        self.status_label.config(text="请先选择并解析文件")
+        self.status_label.config(text="请选择要导入的文件", foreground='blue')
         
         self.log_action("清空导入数据")
     
@@ -613,3 +821,53 @@ class BatchImportPage(BasePage):
             self.logger.info(f"列名映射：{mapping_info}")
         
         return df_renamed
+    
+    def detect_duplicates_in_file(self, df):
+        """检测文件内重复数据"""
+        duplicates = []
+        
+        # 标准化处理数据（模拟导入时的逻辑）
+        df_processed = df.copy()
+        
+        # 处理 group 字段默认值
+        df_processed['group_processed'] = df_processed.apply(
+            lambda row: '默认组' if (pd.isna(row.get('group')) or str(row.get('group', '')).strip() == '') 
+                        else str(row.get('group')), axis=1
+        )
+        
+        # 创建唯一键
+        df_processed['unique_key'] = (
+            df_processed['league'].astype(str) + '-' + 
+            df_processed['year'].astype(str) + '-' + 
+            df_processed['group_processed'].astype(str)
+        )
+        
+        # 查找重复项
+        duplicate_keys = df_processed['unique_key'].duplicated(keep=False)
+        
+        if duplicate_keys.any():
+            # 按唯一键分组，找出重复组合
+            grouped = df_processed[duplicate_keys].groupby('unique_key')
+            
+            for unique_key, group in grouped:
+                if len(group) > 1:
+                    # 解析唯一键
+                    key_parts = unique_key.split('-')
+                    if len(key_parts) >= 3:
+                        league = key_parts[0]
+                        year = '-'.join(key_parts[1:-1])  # 处理年份中可能包含的'-'
+                        group_name = key_parts[-1]
+                        
+                        # 记录重复信息
+                        row_numbers = [idx + 1 for idx in group.index]  # 转换为1基索引
+                        duplicates.append({
+                            'league': league,
+                            'year': year, 
+                            'group': group_name,
+                            'unique_key': unique_key,
+                            'row_numbers': row_numbers,
+                            'count': len(row_numbers),
+                            'rows_data': group[['league', 'year', 'group_processed', 'event', 'country']].to_dict('records')
+                        })
+        
+        return duplicates

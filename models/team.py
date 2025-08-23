@@ -13,19 +13,18 @@ class Team(Base):
     """队伍信息表 - 存储参赛队伍详细信息"""
     __tablename__ = 'teams'
     
-    # 外键关联
-    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, comment='关联的任务ID')
+    # 外键关联和复合主键
+    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), primary_key=True, nullable=False, comment='关联的任务ID（复合主键1）')
+    team_code = Column(Integer, primary_key=True, nullable=False, comment='队伍编码（复合主键2）')
     js_data_id = Column(Integer, ForeignKey('js_data_raw.id'), nullable=True, comment='关联的JS数据源ID')
     
     # 队伍基本信息
-    team_code = Column(Integer, primary_key=True, nullable=False, comment='队伍编码（主键）')
     home_name_cn = Column(String(100), nullable=True, comment='队伍中文名称')
     home_name_tw = Column(String(100), nullable=True, comment='队伍繁体中文名称')
     home_name_en = Column(String(100), nullable=True, comment='队伍英文名称')
     image_path = Column(String(255), nullable=True, comment='队徽图片路径')
     
     # 赛事相关信息
-    league_id = Column(Integer, nullable=False, comment='联赛内部ID')
     round_num = Column(String(20), nullable=True, comment='所属轮次')
     sclass_id = Column(String(50), nullable=True, comment='赛事分类ID')
     group_id = Column(Integer, nullable=True, comment='分组ID')
@@ -43,10 +42,9 @@ class Team(Base):
     
     # 索引优化建议
     __table_args__ = (
-        Index('idx_task_id', 'task_id'),
-        Index('idx_js_data_id', 'js_data_id'),
-        Index('idx_league_id', 'league_id'),
-        Index('idx_home_name_cn', 'home_name_cn'),
+        Index('idx_team_task_id', 'task_id'),
+        Index('idx_team_js_data_id', 'js_data_id'),
+        Index('idx_team_home_name_cn', 'home_name_cn'),
     )
     
     def __repr__(self):

@@ -161,6 +161,16 @@ git push
 - tkinter 应用使用多线程时设置 `daemon=True` 避免程序无法退出
 - 长文本字符串使用 `\\n` 转义换行符避免语法错误
 
+### 搜索功能状态管理解决方案
+- **问题**：Treeview搜索中使用`get_children()`只能获取可见项目，导致一次无结果搜索后再也搜不到结果
+- **原因**：`detach`的项目不会出现在`get_children()`返回值中，搜索范围逐渐缩小
+- **解决方案**：维护完整项目列表`self.all_task_items = []`存储所有项目ID
+- **关键实现**：
+  - 数据加载时保存项目ID到完整列表：`self.all_task_items.append(item_id)`
+  - 搜索时先`reattach`所有项目，再进行过滤
+  - 使用完整列表`self.all_task_items`而非`get_children()`作为搜索范围
+- **技术要点**：添加TclError异常处理，避免已删除项目的错误
+
 ### Git 提交流程
 - 当需要提交 git 时，分成两步执行：
   1. 先告知即将提交的文件列表，等待用户确认

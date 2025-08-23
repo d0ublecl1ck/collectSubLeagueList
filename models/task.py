@@ -40,6 +40,7 @@ class Task(Base):
     teams = relationship("Team", back_populates="task", cascade="all, delete-orphan")
     js_data_records = relationship("JsDataRaw", back_populates="task", cascade="all, delete-orphan")
     standings_records = relationship("Standings", back_populates="task", cascade="all, delete-orphan")
+    match_records = relationship("Match", back_populates="task", cascade="all, delete-orphan")
     
     # 索引优化建议和约束
     __table_args__ = (
