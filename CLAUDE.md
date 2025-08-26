@@ -207,3 +207,5 @@ JsDataRaw (1) ──→ Team (1:N)    # 数据来源追踪
 - JS数据解析依赖 `arrTeam` 数组结构
 - 东西拆分依据：按 `group_id` 奇偶数分组
 - 积分榜存储格式：JSON字符串，包含rank/team_name/points等字段
+
+- 本项目不进行测试，只进行语法检查

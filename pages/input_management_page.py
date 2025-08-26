@@ -5,6 +5,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
+import re
 
 from .base_page import BasePage
 from models import Task
@@ -91,7 +92,7 @@ class InputManagementPage(BasePage):
         list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
         
         # 创建 Treeview
-        columns = ('ID', '赛事级别', '赛事名称', '联赛名称', '国家', '年份', '类型', '分组', '最后爬取', '创建时间')
+        columns = ('ID', '赛事级别', '赛事名称', '联赛名称', '国家', '年份', '类型', '分组', '主要链接', '备用链接', '最后爬取', '创建时间')
         self.task_tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=12, selectmode='extended')
         
         # 设置列标题和宽度
@@ -103,6 +104,8 @@ class InputManagementPage(BasePage):
         self.task_tree.heading('年份', text='年份')
         self.task_tree.heading('类型', text='类型')
         self.task_tree.heading('分组', text='分组')
+        self.task_tree.heading('主要链接', text='主要链接')
+        self.task_tree.heading('备用链接', text='备用链接')
         self.task_tree.heading('最后爬取', text='最后爬取')
         self.task_tree.heading('创建时间', text='创建时间')
         
@@ -114,6 +117,8 @@ class InputManagementPage(BasePage):
         self.task_tree.column('年份', width=60, anchor='center')
         self.task_tree.column('类型', width=80, anchor='center')
         self.task_tree.column('分组', width=80, anchor='center')
+        self.task_tree.column('主要链接', width=150)
+        self.task_tree.column('备用链接', width=150)
         self.task_tree.column('最后爬取', width=120, anchor='center')
         self.task_tree.column('创建时间', width=120, anchor='center')
         
@@ -130,8 +135,14 @@ class InputManagementPage(BasePage):
         list_frame.grid_rowconfigure(0, weight=1)
         list_frame.grid_columnconfigure(0, weight=1)
         
-        # 绑定选择事件
+        # 绑定选择事件和双击编辑事件
         self.task_tree.bind('<<TreeviewSelect>>', self.on_task_select)
+        self.task_tree.bind('<Double-1>', self.on_double_click)
+        
+        # 初始化编辑状态变量
+        self.edit_item = None
+        self.edit_column = None
+        self.edit_widget = None
         
     def create_detail_panel(self):
         """创建详情面板"""
@@ -180,6 +191,8 @@ class InputManagementPage(BasePage):
                         task.year,
                         task.type,
                         task.group,
+                        task.link or '',
+                        task.link_second or '',
                         last_crawl_time,
                         created_time
                     ))
@@ -378,3 +391,177 @@ class InputManagementPage(BasePage):
             except tk.TclError:
                 # 如果项目已经被删除或不存在，跳过
                 pass
+    
+    def on_double_click(self, event):
+        """处理双击事件"""
+        # 取消当前编辑（如果有）
+        self.cancel_edit()
+        
+        # 确定双击的位置
+        item = self.task_tree.identify_row(event.y)
+        column = self.task_tree.identify_column(event.x)
+        
+        if not item or not column:
+            return
+        
+        # 获取列名
+        column_index = int(column[1:]) - 1  # 列编号从#1开始
+        columns = ('ID', '赛事级别', '赛事名称', '联赛名称', '国家', '年份', '类型', '分组', '主要链接', '备用链接', '最后爬取', '创建时间')
+        
+        if column_index < 0 or column_index >= len(columns):
+            return
+            
+        column_name = columns[column_index]
+        
+        # 检查是否可编辑
+        readonly_columns = ['ID', '最后爬取', '创建时间']
+        if column_name in readonly_columns:
+            self.show_message("提示", f"{column_name} 字段不可编辑", "warning")
+            return
+        
+        # 开始编辑
+        self.start_edit_cell(item, column_name, column_index)
+    
+    def start_edit_cell(self, item, column_name, column_index):
+        """开始编辑单元格"""
+        # 记录编辑状态
+        self.edit_item = item
+        self.edit_column = column_name
+        
+        # 获取当前值
+        current_values = self.task_tree.item(item, 'values')
+        current_value = current_values[column_index]
+        
+        # 获取单元格位置
+        bbox = self.task_tree.bbox(item, f'#{column_index + 1}')
+        if not bbox:
+            return
+        
+        x, y, width, height = bbox
+        
+        # 创建编辑控件
+        if column_name == '类型':
+            # 下拉框编辑
+            self.edit_widget = ttk.Combobox(
+                self.task_tree,
+                values=['常规', '东西拆分', '联二合并', '春秋合并'],
+                state='readonly'
+            )
+            self.edit_widget.set(current_value)
+        else:
+            # 文本框编辑
+            self.edit_widget = tk.Entry(self.task_tree)
+            self.edit_widget.insert(0, current_value)
+            self.edit_widget.select_range(0, tk.END)
+        
+        # 放置编辑控件
+        self.edit_widget.place(x=x, y=y, width=width, height=height)
+        self.edit_widget.focus_set()
+        
+        # 绑定事件
+        self.edit_widget.bind('<Return>', self.save_edit)
+        self.edit_widget.bind('<Escape>', self.cancel_edit)
+        self.edit_widget.bind('<FocusOut>', self.save_edit)
+    
+    def save_edit(self, event=None):
+        """保存编辑"""
+        if not self.edit_widget or not self.edit_item:
+            return
+        
+        try:
+            # 获取新值
+            new_value = self.edit_widget.get().strip()
+            
+            # 验证输入
+            if not self.validate_input(self.edit_column, new_value):
+                return
+            
+            # 获取任务ID
+            item_values = self.task_tree.item(self.edit_item, 'values')
+            task_id = item_values[0]
+            
+            # 更新数据库
+            with self.get_db_session() as session:
+                task = session.query(Task).filter(Task.id == task_id).first()
+                if task:
+                    # 根据列名更新对应字段
+                    field_mapping = {
+                        '赛事级别': 'level',
+                        '赛事名称': 'event',
+                        '联赛名称': 'league',
+                        '国家': 'country',
+                        '年份': 'year',
+                        '类型': 'type',
+                        '分组': 'group',
+                        '主要链接': 'link',
+                        '备用链接': 'link_second'
+                    }
+                    
+                    if self.edit_column in field_mapping:
+                        field_name = field_mapping[self.edit_column]
+                        setattr(task, field_name, new_value if new_value else None)
+                        task.updated_at = datetime.now()
+                        session.commit()
+                        
+                        # 刷新显示
+                        self.refresh_data()
+                        self.log_action("编辑任务", f"更新任务 {task_id} 的 {self.edit_column}: {new_value}")
+            
+        except Exception as e:
+            self.logger.error(f"保存编辑失败: {e}")
+            self.show_message("错误", f"保存失败: {str(e)}", "error")
+        finally:
+            self.cancel_edit()
+    
+    def cancel_edit(self, event=None):
+        """取消编辑"""
+        if self.edit_widget:
+            self.edit_widget.destroy()
+            self.edit_widget = None
+        self.edit_item = None
+        self.edit_column = None
+    
+    def validate_input(self, column_name, value):
+        """验证输入"""
+        if column_name in ['赛事级别', '赛事名称', '联赛名称', '国家', '分组'] and not value:
+            self.show_message("错误", f"{column_name} 不能为空", "error")
+            return False
+        
+        if column_name == '赛事级别':
+            try:
+                int(value)
+            except ValueError:
+                self.show_message("错误", "赛事级别必须为数字", "error")
+                return False
+        
+        if column_name == '年份':
+            if value:
+                try:
+                    year = int(value)
+                    if len(value) != 4 or year < 1900 or year > 2100:
+                        self.show_message("错误", "年份格式不正确（请输入4位数字，如2024）", "error")
+                        return False
+                except ValueError:
+                    self.show_message("错误", "年份必须为数字", "error")
+                    return False
+        
+        if column_name == '类型':
+            valid_types = ['常规', '东西拆分', '联二合并', '春秋合并']
+            if value not in valid_types:
+                self.show_message("错误", f"类型必须为: {'/'.join(valid_types)}", "error")
+                return False
+        
+        if column_name in ['主要链接', '备用链接'] and value:
+            url_pattern = re.compile(
+                r'^https?://'  # http:// or https://
+                r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain...
+                r'localhost|'  # localhost...
+                r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+                r'(?::\d+)?'  # optional port
+                r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+            
+            if not url_pattern.match(value):
+                self.show_message("错误", f"{column_name} URL格式不正确", "error")
+                return False
+        
+        return True
