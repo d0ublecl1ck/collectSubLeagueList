@@ -944,31 +944,94 @@ class DataCrawlPage(BasePage):
 
         return merged_records
 
+    def calculate_standings_increment(self, prev_records, current_records):
+        """计算两轮之间的增量数据"""
+        if not prev_records or not current_records:
+            return current_records or []
+
+        # 创建上一轮的队伍数据映射
+        prev_map = {record.get('team_name', ''): record for record in prev_records}
+        
+        increment_records = []
+        for current_record in current_records:
+            team_name = current_record.get('team_name', '')
+            if team_name in prev_map:
+                prev_record = prev_map[team_name]
+                # 计算增量
+                increment_record = {
+                    'team_code': current_record.get('team_code', ''),
+                    'team_name': team_name,
+                    'games': current_record.get('games', 0) - prev_record.get('games', 0),
+                    'wins': current_record.get('wins', 0) - prev_record.get('wins', 0),
+                    'draws': current_record.get('draws', 0) - prev_record.get('draws', 0),
+                    'losses': current_record.get('losses', 0) - prev_record.get('losses', 0),
+                    'goals_for': current_record.get('goals_for', 0) - prev_record.get('goals_for', 0),
+                    'goals_against': current_record.get('goals_against', 0) - prev_record.get('goals_against', 0),
+                }
+                # 计算衍生字段
+                increment_record['goal_diff'] = increment_record['goals_for'] - increment_record['goals_against']
+                increment_record['points'] = increment_record['wins'] * 3 + increment_record['draws'] * 1
+                increment_records.append(increment_record)
+            else:
+                # 新队伍，直接使用当前记录
+                increment_records.append(current_record.copy())
+        
+        return increment_records
+
     def merge_standings_by_stage(self, first_standings, second_standings):
         """合并两个阶段的积分榜数据"""
         if not first_standings or not second_standings:
             return first_standings or second_standings or {}
 
-        merged_standings = {}
+        # 步骤1：保留第一阶段的所有轮次数据
+        merged_standings = dict(first_standings)
 
-        # 对第二阶段的每一轮进行处理
-        for round_num, second_tables in second_standings.items():
+        # 步骤2：获取第一阶段最大轮次号和最后一轮数据
+        first_rounds = sorted(first_standings.keys(), key=int)
+        max_first_round = int(first_rounds[-1]) if first_rounds else 0
+        last_first_standings = first_standings[first_rounds[-1]] if first_rounds else {}
+
+        # 步骤3：处理第二阶段数据，进行轮次偏移和累积计算
+        second_rounds = sorted(second_standings.keys(), key=int)
+        
+        # 用于累积计算的基础数据（从第一阶段最后一轮开始）
+        cumulative_base = {}
+        for table_type, records in last_first_standings.items():
+            cumulative_base[table_type] = [record.copy() for record in records]
+
+        for i, round_num in enumerate(second_rounds):
+            # 计算新的轮次号（偏移）
+            new_round_num = str(max_first_round + int(round_num))
+            second_tables = second_standings[round_num]
+            
             merged_tables = {}
-
-            # 对每个表格类型(total, home, away)进行合并
+            
+            # 对每个表格类型(total, home, away)进行处理
             for table_type, second_table_records in second_tables.items():
-                # 获取第一阶段最后一轮对应表格类型的数据作为基础
-                first_rounds = sorted(first_standings.keys(), key=int)
-                if first_rounds and first_rounds[-1] in first_standings:
-                    base_table_records = first_standings[first_rounds[-1]].get(table_type, [])
-                    merged_records = self.merge_round_records_by_team(base_table_records, second_table_records)
-                    if merged_records:
-                        merged_tables[table_type] = merged_records
+                if i == 0:
+                    # 第二阶段第一轮：基于第一阶段最后一轮进行累积
+                    base_records = cumulative_base.get(table_type, [])
+                    merged_records = self.merge_round_records_by_team(base_records, second_table_records)
                 else:
-                    merged_tables[table_type] = second_table_records
+                    # 第二阶段后续轮次：基于上一轮结果进行累积
+                    prev_round_num = str(max_first_round + int(second_rounds[i-1]))
+                    if prev_round_num in merged_standings:
+                        base_records = merged_standings[prev_round_num].get(table_type, [])
+                        # 计算当前轮次的增量数据
+                        prev_second_round = second_rounds[i-1]
+                        current_increment = self.calculate_standings_increment(
+                            second_standings[prev_second_round].get(table_type, []),
+                            second_table_records
+                        )
+                        merged_records = self.merge_round_records_by_team(base_records, current_increment)
+                    else:
+                        merged_records = second_table_records
+                
+                if merged_records:
+                    merged_tables[table_type] = merged_records
 
             if merged_tables:
-                merged_standings[round_num] = merged_tables
+                merged_standings[new_round_num] = merged_tables
 
         return merged_standings
 
