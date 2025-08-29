@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="989c80a2-46b1-44e9-8b3b-dc81bdfcc8a9" name="更改" comment="">
+      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data.db" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/generate_inp_25.py" beforeDir="false" afterPath="$PROJECT_DIR$/generate_inp.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pages/calculate/standings_calculator.py" beforeDir="false" afterPath="$PROJECT_DIR$/pages/calculate/standings_calculator.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pages/data_crawl_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/pages/data_crawl_page.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pages/data_management_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/pages/data_management_page.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/league.db" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/models/entities.py" beforeDir="false" afterPath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/models/entities.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/pyproject.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/services/crawler_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/services/crawler_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/services/input_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/services/input_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/services/league_data_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/services/league_data_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/sub league crawl 设计文档.md" beforeDir="false" afterPath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/sub league crawl 设计文档.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/ui/pages/crawl_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/ui/pages/crawl_page.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/ui/pages/input_manage_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/ui/pages/input_manage_page.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/ui/pages/input_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/ui/pages/input_page.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/ui/pages/league_data_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/ui/pages/league_data_page.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/uv.lock" beforeDir="false" afterPath="$PROJECT_DIR$/refer/collectSubLeagueListGUI/uv.lock" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;d0ublecl1ck&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/d0ublecl1ck/collectSubLeagueList.git&quot;,
+    &quot;accountId&quot;: &quot;c3ab6f97-575d-4613-97d0-553be909edb9&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 0
+}</component>
+  <component name="ProjectId" id="31b37gnRZJp2AtSlJuxZxsBKJkq" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+    <option name="showVisibilityIcons" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python.data_management_page.executor": "Run",
+    "Python.generate_inp.executor": "Run",
+    "Python.main.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "master",
+    "last_opened_file_path": "D:/BaiduSyncdisk/Workspace/PythonWorkSpace/spiderProjects/titan007All/collectSubLeagueListCom/collectSubLeagueListLast",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RunManager" selected="Python.main">
+    <configuration name="data_management_page" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="collectSubLeagueListLast" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/pages" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/pages/data_management_page.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="generate_inp" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="collectSubLeagueListLast" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/generate_inp.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="main" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="collectSubLeagueListLast" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/main.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Python.main" />
+        <item itemvalue="Python.data_management_page" />
+        <item itemvalue="Python.generate_inp" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-1632447f56bf-JavaScript-PY-243.25659.43" />
+        <option value="bundled-python-sdk-181015f7ab06-4df51de95216-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-243.25659.43" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="应用程序级" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="默认任务">
+      <changelist id="989c80a2-46b1-44e9-8b3b-dc81bdfcc8a9" name="更改" comment="" />
+      <created>1755778781431</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1755778781431</updated>
+      <workItem from="1755778782854" duration="88000" />
+      <workItem from="1755778880093" duration="2000" />
+      <workItem from="1755919538677" duration="5429000" />
+      <workItem from="1756224593180" duration="7997000" />
+      <workItem from="1756405551189" duration="6576000" />
+      <workItem from="1756478602009" duration="3859000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/collectSubLeagueListLast$generate_inp.coverage" NAME="generate_inp 覆盖结果" MODIFIED="1756478618863" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/collectSubLeagueListLast$main.coverage" NAME="main 覆盖结果" MODIFIED="1756484595041" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/collectSubLeagueListLast$data_management_page.coverage" NAME="data_management_page 覆盖结果" MODIFIED="1756484343503" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/pages" />
+  </component>
+</project>
