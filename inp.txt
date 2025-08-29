@@ -1,4 +1,6 @@
 level	event	country	league	type	link	link_second	year	group
+1	美洲赛事	阿根廷	阿甲	联二合并	http://zq.titan007.com/cn/SubLeague/2024/2_1232.html http://zq.titan007.com/cn/SubLeague/2024/2_2761.html 2024	默认组
+3	美洲赛事	阿根廷	阿乙曼特	春秋合并 http://zq.titan007.com/cn/SubLeague/2024/917_381.html	http://zq.titan007.com/cn/SubLeague/2024/917_2119.html	 2024 默认值
 2	英格兰	英格兰	英冠	常规	http://zq.titan007.com/cn/SubLeague/2024-2025/37_87.html		2024-2025	默认组
 3	英格兰	英格兰	英甲	常规	http://zq.titan007.com/cn/SubLeague/2024-2025/39_135.html		2024-2025	默认组
 4	英格兰	英格兰	英乙	常规	http://zq.titan007.com/cn/SubLeague/2024-2025/35_139.html		2024-2025	默认组

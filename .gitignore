@@ -20,3 +20,5 @@ refer/
 web-bundles/
 
 *.db
+
+.idea/

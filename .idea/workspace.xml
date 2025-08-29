@@ -5,9 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="989c80a2-46b1-44e9-8b3b-dc81bdfcc8a9" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/inp.txt" beforeDir="false" afterPath="$PROJECT_DIR$/inp.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pages/batch_import_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/pages/batch_import_page.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pages/input_management_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/pages/input_management_page.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -163,8 +162,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.generate_inp" />
         <item itemvalue="Python.main" />
+        <item itemvalue="Python.generate_inp" />
         <item itemvalue="Python.a" />
         <item itemvalue="Python.data_management_page" />
       </list>
@@ -192,7 +191,7 @@
       <workItem from="1756224593180" duration="7997000" />
       <workItem from="1756405551189" duration="6576000" />
       <workItem from="1756478602009" duration="4344000" />
-      <workItem from="1756485183741" duration="4276000" />
+      <workItem from="1756485183741" duration="4585000" />
     </task>
     <servers />
   </component>
@@ -211,9 +210,9 @@
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/collectSubLeagueListLast$generate_inp.coverage" NAME="generate_inp 覆盖结果" MODIFIED="1756478618863" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/collectSubLeagueListLast$a.coverage" NAME="a 覆盖结果" MODIFIED="1756487236452" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/collectSubLeagueListLast$main.coverage" NAME="main 覆盖结果" MODIFIED="1756489513917" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/collectSubLeagueListLast$generate_inp.coverage" NAME="generate_inp 覆盖结果" MODIFIED="1756489629247" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/collectSubLeagueListLast$main.coverage" NAME="main 覆盖结果" MODIFIED="1756489836667" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/collectSubLeagueListLast$data_management_page.coverage" NAME="data_management_page 覆盖结果" MODIFIED="1756484343503" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/pages" />
   </component>
 </project>
