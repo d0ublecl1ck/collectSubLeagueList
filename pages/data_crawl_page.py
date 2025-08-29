@@ -410,12 +410,6 @@ class DataCrawlPage(BasePage):
         self.save_match_data(match_data1, task, js_data1.id, session)
         self.save_match_data(match_data2, task, js_data2.id, session)
 
-        # 合并比赛数据（使用正确的阶段合并逻辑）
-        merged_match_data = self.merge_match_data_by_stage(match_data1, match_data2)
-
-        # 合并队伍数据
-        merged_team_data = team_data1 + [t for t in team_data2 if t not in team_data1]
-
         # 分别计算两个阶段的三种积分榜
         calculated_standings1 = self.calculate_three_type_standings(match_data1, team_data1)
         calculated_standings2 = self.calculate_three_type_standings(match_data2, team_data2)
@@ -549,7 +543,7 @@ class DataCrawlPage(BasePage):
                 prev_str = fixed_str
                 fixed_str = fixed_str.replace(',,', ',None,')
             round_str = fixed_str
-            
+
             # 头尾空位补齐
             round_str = re.sub(r'\[,', '[None,', round_str)
             round_str = re.sub(r',\]', ',None]', round_str)
@@ -846,36 +840,36 @@ class DataCrawlPage(BasePage):
 
         saved_count = 0
         for round_num, round_standings in standings_data.items():
-                for standings_category, team_records in round_standings.items():
-                    for team_record in team_records:
-                        team_code = str(team_record['team_code'])
+            for standings_category, team_records in round_standings.items():
+                for team_record in team_records:
+                    team_code = str(team_record['team_code'])
 
-                        # 确定division_type
-                        if team_code in east_teams:
-                            division_type = 'east'
-                        elif team_code in west_teams:
-                            division_type = 'west'
-                        else:
-                            division_type = 'default'  # 保险起见
+                    # 确定division_type
+                    if team_code in east_teams:
+                        division_type = 'east'
+                    elif team_code in west_teams:
+                        division_type = 'west'
+                    else:
+                        division_type = 'default'  # 保险起见
 
-                        standings_record = Standings(
-                            task_id=task.id,
-                            standings_category=standings_category,  # total/home/away
-                            division_type=division_type,  # east/west
-                            team_code=team_code,
-                            round_num=round_num,  # 截止轮次
-                            rank=team_record['rank'],
-                            games=team_record['games'],
-                            wins=team_record['wins'],
-                            draws=team_record['draws'],
-                            losses=team_record['losses'],
-                            goals_for=team_record['goals_for'],
-                            goals_against=team_record['goals_against'],
-                            goal_diff=team_record['goal_diff'],
-                            points=team_record['points']
-                        )
-                        session.add(standings_record)
-                        saved_count += 1
+                    standings_record = Standings(
+                        task_id=task.id,
+                        standings_category=standings_category,  # total/home/away
+                        division_type=division_type,  # east/west
+                        team_code=team_code,
+                        round_num=round_num,  # 截止轮次
+                        rank=team_record['rank'],
+                        games=team_record['games'],
+                        wins=team_record['wins'],
+                        draws=team_record['draws'],
+                        losses=team_record['losses'],
+                        goals_for=team_record['goals_for'],
+                        goals_against=team_record['goals_against'],
+                        goal_diff=team_record['goal_diff'],
+                        points=team_record['points']
+                    )
+                    session.add(standings_record)
+                    saved_count += 1
 
         self.logger.info(f"保存了 {saved_count} 条东西拆分结构化积分榜记录")
 
@@ -951,7 +945,7 @@ class DataCrawlPage(BasePage):
 
         # 创建上一轮的队伍数据映射
         prev_map = {record.get('team_name', ''): record for record in prev_records}
-        
+
         increment_records = []
         for current_record in current_records:
             team_name = current_record.get('team_name', '')
@@ -959,13 +953,13 @@ class DataCrawlPage(BasePage):
                 prev_record = prev_map[team_name]
                 # 计算增量
                 increment_record = {
-                    'team_code': current_record.get('team_code', ''),
-                    'team_name': team_name,
-                    'games': current_record.get('games', 0) - prev_record.get('games', 0),
-                    'wins': current_record.get('wins', 0) - prev_record.get('wins', 0),
-                    'draws': current_record.get('draws', 0) - prev_record.get('draws', 0),
-                    'losses': current_record.get('losses', 0) - prev_record.get('losses', 0),
-                    'goals_for': current_record.get('goals_for', 0) - prev_record.get('goals_for', 0),
+                    'team_code'    : current_record.get('team_code', ''),
+                    'team_name'    : team_name,
+                    'games'        : current_record.get('games', 0) - prev_record.get('games', 0),
+                    'wins'         : current_record.get('wins', 0) - prev_record.get('wins', 0),
+                    'draws'        : current_record.get('draws', 0) - prev_record.get('draws', 0),
+                    'losses'       : current_record.get('losses', 0) - prev_record.get('losses', 0),
+                    'goals_for'    : current_record.get('goals_for', 0) - prev_record.get('goals_for', 0),
                     'goals_against': current_record.get('goals_against', 0) - prev_record.get('goals_against', 0),
                 }
                 # 计算衍生字段
@@ -975,7 +969,7 @@ class DataCrawlPage(BasePage):
             else:
                 # 新队伍，直接使用当前记录
                 increment_records.append(current_record.copy())
-        
+
         return increment_records
 
     def merge_standings_by_stage(self, first_standings, second_standings):
@@ -993,7 +987,7 @@ class DataCrawlPage(BasePage):
 
         # 步骤3：处理第二阶段数据，进行轮次偏移和累积计算
         second_rounds = sorted(second_standings.keys(), key=int)
-        
+
         # 用于累积计算的基础数据（从第一阶段最后一轮开始）
         cumulative_base = {}
         for table_type, records in last_first_standings.items():
@@ -1003,9 +997,9 @@ class DataCrawlPage(BasePage):
             # 计算新的轮次号（偏移）
             new_round_num = str(max_first_round + int(round_num))
             second_tables = second_standings[round_num]
-            
+
             merged_tables = {}
-            
+
             # 对每个表格类型(total, home, away)进行处理
             for table_type, second_table_records in second_tables.items():
                 if i == 0:
@@ -1014,11 +1008,11 @@ class DataCrawlPage(BasePage):
                     merged_records = self.merge_round_records_by_team(base_records, second_table_records)
                 else:
                     # 第二阶段后续轮次：基于上一轮结果进行累积
-                    prev_round_num = str(max_first_round + int(second_rounds[i-1]))
+                    prev_round_num = str(max_first_round + int(second_rounds[i - 1]))
                     if prev_round_num in merged_standings:
                         base_records = merged_standings[prev_round_num].get(table_type, [])
                         # 计算当前轮次的增量数据
-                        prev_second_round = second_rounds[i-1]
+                        prev_second_round = second_rounds[i - 1]
                         current_increment = self.calculate_standings_increment(
                             second_standings[prev_second_round].get(table_type, []),
                             second_table_records
@@ -1026,7 +1020,7 @@ class DataCrawlPage(BasePage):
                         merged_records = self.merge_round_records_by_team(base_records, current_increment)
                     else:
                         merged_records = second_table_records
-                
+
                 if merged_records:
                     merged_tables[table_type] = merged_records
 
