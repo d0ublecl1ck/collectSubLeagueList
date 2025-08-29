@@ -514,10 +514,10 @@ class BatchImportPage(BasePage):
         else:
             self.validation_text.insert(tk.END, "\n✅ 未发现文件内重复数据\n\n")
         
-        # 显示错误信息（仅显示前20个错误）
+        # 显示错误信息
         if invalid_rows > 0:
             self.validation_text.insert(tk.END, "验证错误详情:\n")
-            error_results = [r for r in results if not r['valid']][:20]
+            error_results = [r for r in results if not r['valid']]
             for result in error_results:
                 self.validation_text.insert(tk.END, result['message'] + '\n')
             
@@ -741,48 +741,63 @@ class BatchImportPage(BasePage):
     
     def detect_separator_and_parse(self, file_path):
         """智能检测分隔符并解析文件"""
-        separators = [
-            ('\t', 'TAB分隔符'),
-            (',', '逗号分隔符'),
-            (';', '分号分隔符')
-        ]
+        # 读取文件前两行来判断格式
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
         
-        for sep, sep_name in separators:
-            try:
-                # 尝试解析文件
-                df = pd.read_csv(file_path, sep=sep, encoding='utf-8')
-                
-                # 检查是否成功解析（至少要有必需的列）
-                required_columns = ['level', 'event', 'country', 'league', 'type', 'year']
-                
-                # 将列名转换为小写进行比较（容错处理）
-                df_columns_lower = [col.lower().strip() for col in df.columns]
-                
-                # 检查必需列是否存在
-                missing_required = []
-                for req_col in required_columns:
-                    if req_col.lower() not in df_columns_lower:
-                        missing_required.append(req_col)
-                
-                # 如果缺少必需列太多，尝试下一个分隔符
-                if len(missing_required) > 2:  # 允许最多缺少2个必需列
-                    continue
-                    
-                # 检查数据行数是否合理（至少1行数据）
-                if len(df) < 1:
-                    continue
-                    
-                # 成功解析，返回结果
-                self.logger.info(f"检测到文件格式：{sep_name}，列数：{len(df.columns)}，行数：{len(df)}")
-                return df, sep_name
-                
-            except Exception as e:
-                # 当前分隔符解析失败，尝试下一个
-                self.logger.debug(f"使用{sep_name}解析失败：{e}")
-                continue
+        if len(lines) < 2:
+            raise ValueError("文件内容不足，至少需要标题行和一行数据")
         
-        # 所有分隔符都失败，抛出异常
-        raise ValueError("无法检测文件格式，请检查文件内容是否符合要求")
+        header_line = lines[0].strip()
+        data_line = lines[1].strip()
+        
+        try:
+            # 使用 split() 自动分割标题行和数据行
+            header_parts = header_line.split()
+            data_parts = data_line.split()
+            
+            # 检查列数是否一致
+            if len(header_parts) != len(data_parts):
+                raise ValueError(f"标题行列数({len(header_parts)})与数据行列数({len(data_parts)})不一致")
+            
+            # 检查是否有足够的列
+            if len(data_parts) < 6:  # 至少需要6列必填字段
+                raise ValueError("数据列数不足，至少需要6列")
+            
+            # 根据标题行确定type字段的位置
+            type_index = -1
+            for i, col_name in enumerate(header_parts):
+                if col_name.lower() == 'type':
+                    type_index = i
+                    break
+            
+            if type_index == -1:
+                raise ValueError("未找到type列")
+            
+            # 验证type字段值
+            type_field = data_parts[type_index].strip()
+            valid_types = ["常规", "联二合并", "春秋合并", "东西拆分"]
+            if type_field not in valid_types:
+                raise ValueError(f"type字段值无效: {type_field}")
+            
+            # 根据列数判断是否包含link_second字段
+            if len(data_parts) not in [8, 9]:
+                raise ValueError(f"列数错误，应为8或9列，实际为{len(data_parts)}列")
+            
+            # 使用空白字符作为分隔符解析文件
+            df = pd.read_csv(file_path, sep='\s+', encoding='utf-8')
+            separator_used = "空白分隔符"
+            
+            # 记录实际的列顺序
+            self.logger.info(f"检测到文件格式：{separator_used}")
+            self.logger.info(f"列顺序：{list(df.columns)}")
+            self.logger.info(f"数据：列数={len(df.columns)}，行数={len(df)}")
+            
+            return df, separator_used
+            
+        except Exception as e:
+            self.logger.error(f"解析文件失败：{e}")
+            raise ValueError(f"无法解析文件格式: {str(e)}")
     
     def normalize_column_names(self, df):
         """标准化列名，支持多种列名变体"""
