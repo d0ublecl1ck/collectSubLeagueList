@@ -3,9 +3,11 @@
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from datetime import datetime
 import re
+import os
+from openpyxl import Workbook
 
 from .base_page import BasePage
 from models import Task
@@ -63,6 +65,15 @@ class InputManagementPage(BasePage):
             width=8
         )
         invert_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 导出按钮
+        export_btn = ttk.Button(
+            toolbar_frame,
+            text="导出Excel",
+            command=self.export_to_excel,
+            width=12
+        )
+        export_btn.pack(side=tk.LEFT, padx=(10, 0))
         
         # 搜索框
         search_frame = ttk.Frame(toolbar_frame)
@@ -565,3 +576,69 @@ class InputManagementPage(BasePage):
                 return False
         
         return True
+    
+    def export_to_excel(self):
+        """导出任务数据到Excel文件"""
+        try:
+            # 从数据库查询所有任务数据
+            with self.get_db_session() as session:
+                tasks = session.query(Task).order_by(Task.created_at.desc()).all()
+                
+                if not tasks:
+                    self.show_message("提示", "暂无任务数据可导出", "info")
+                    return
+                
+                # 让用户选择保存位置
+                file_path = filedialog.asksaveasfilename(
+                    title="保存Excel文件",
+                    defaultextension=".xlsx",
+                    filetypes=[("Excel文件", "*.xlsx"), ("所有文件", "*.*")],
+                    initialfile="任务数据导出.xlsx"
+                )
+                
+                if not file_path:
+                    return  # 用户取消了保存
+                
+                # 创建工作簿和工作表
+                wb = Workbook()
+                ws = wb.active
+                ws.title = "任务数据"
+                
+                # 设置表头
+                headers = ['赛事级别', '赛事名称', '国家/地区', '联赛名称', '赛事类型', '主要链接', '第二链接', '赛事年份', '分组信息']
+                ws.append(headers)
+                
+                # 添加数据行
+                for task in tasks:
+                    row_data = [
+                        task.level,
+                        task.event or '',
+                        task.country or '',
+                        task.league or '',
+                        task.type or '',
+                        task.link or '',
+                        task.link_second or '',
+                        task.year or '',
+                        task.group or ''
+                    ]
+                    ws.append(row_data)
+                
+                # 调整列宽
+                column_widths = [10, 20, 15, 25, 12, 40, 40, 12, 15]
+                for i, width in enumerate(column_widths, 1):
+                    ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = width
+                
+                # 设置表头样式
+                for cell in ws[1]:
+                    cell.font = cell.font.copy(bold=True)
+                
+                # 保存文件
+                wb.save(file_path)
+                
+                # 显示成功消息
+                self.show_message("成功", f"成功导出 {len(tasks)} 条任务数据到:\n{os.path.basename(file_path)}", "info")
+                self.log_action("导出Excel", f"成功导出 {len(tasks)} 条任务数据到 {file_path}")
+                
+        except Exception as e:
+            self.logger.error(f"导出Excel失败: {e}")
+            self.show_message("错误", f"导出失败: {str(e)}", "error")
