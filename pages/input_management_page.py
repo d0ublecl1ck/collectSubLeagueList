@@ -85,6 +85,18 @@ class InputManagementPage(BasePage):
         search_entry = ttk.Entry(search_frame, textvariable=self.search_var, width=20)
         search_entry.pack(side=tk.LEFT)
         
+        # 统计信息栏
+        stats_frame = ttk.Frame(self.frame)
+        stats_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        self.stats_label = ttk.Label(
+            stats_frame, 
+            text="总数: 0 | 显示: 0 | 选中: 0",
+            font=('Arial', 9),
+            foreground='blue'
+        )
+        self.stats_label.pack(side=tk.LEFT)
+        
         # 任务列表
         self.create_task_list()
         
@@ -212,6 +224,9 @@ class InputManagementPage(BasePage):
             
             self.log_action("刷新任务列表", f"加载了 {len(tasks)} 条记录")
             
+            # 更新统计信息
+            self.update_stats()
+            
         except Exception as e:
             self.logger.error(f"刷新数据失败: {e}")
             self.show_message("错误", f"刷新数据失败: {str(e)}", "error")
@@ -221,6 +236,7 @@ class InputManagementPage(BasePage):
         selection = self.task_tree.selection()
         if not selection:
             self.clear_detail()
+            self.update_stats()
             return
             
         # 获取选中的任务ID
@@ -229,6 +245,9 @@ class InputManagementPage(BasePage):
         
         # 加载任务详情
         self.load_task_detail(task_id)
+        
+        # 更新统计信息
+        self.update_stats()
     
     def load_task_detail(self, task_id):
         """加载任务详情"""
@@ -329,6 +348,7 @@ class InputManagementPage(BasePage):
                 # 刷新界面
                 self.refresh_data()
                 self.clear_detail()
+                self.update_stats()
                     
         except Exception as e:
             self.logger.error(f"批量删除任务失败: {e}")
@@ -343,6 +363,7 @@ class InputManagementPage(BasePage):
                 # 选中所有可见项目
                 self.task_tree.selection_set(all_items)
                 self.log_action("全选操作", f"已选中 {len(all_items)} 个任务")
+                self.update_stats()
             else:
                 self.show_message("提示", "暂无任务可选择", "info")
         except Exception as e:
@@ -369,6 +390,7 @@ class InputManagementPage(BasePage):
             selected_count = len(new_selection)
             unselected_count = len(current_selection)
             self.log_action("反选操作", f"新选中 {selected_count} 个任务，取消选中 {unselected_count} 个任务")
+            self.update_stats()
             
         except Exception as e:
             self.logger.error(f"反选操作失败: {e}")
@@ -388,6 +410,7 @@ class InputManagementPage(BasePage):
         
         # 如果搜索框为空，显示所有项目
         if not search_text:
+            self.update_stats()
             return
         
         # 过滤显示匹配的项目，使用完整项目列表确保所有数据都参与搜索
@@ -402,6 +425,9 @@ class InputManagementPage(BasePage):
             except tk.TclError:
                 # 如果项目已经被删除或不存在，跳过
                 pass
+        
+        # 更新统计信息
+        self.update_stats()
     
     def on_double_click(self, event):
         """处理双击事件"""
@@ -517,6 +543,7 @@ class InputManagementPage(BasePage):
                         # 刷新显示
                         self.refresh_data()
                         self.log_action("编辑任务", f"更新任务 {task_id} 的 {self.edit_column}: {new_value}")
+                        self.update_stats()
             
         except Exception as e:
             self.logger.error(f"保存编辑失败: {e}")
@@ -642,3 +669,24 @@ class InputManagementPage(BasePage):
         except Exception as e:
             self.logger.error(f"导出Excel失败: {e}")
             self.show_message("错误", f"导出失败: {str(e)}", "error")
+    
+    def update_stats(self):
+        """更新统计信息显示"""
+        try:
+            # 获取数据库总数
+            with self.get_db_session() as session:
+                total_count = session.query(Task).count()
+            
+            # 获取当前显示数量
+            visible_count = len(self.task_tree.get_children())
+            
+            # 获取选中数量
+            selected_count = len(self.task_tree.selection())
+            
+            # 更新显示
+            stats_text = f"总数: {total_count} | 显示: {visible_count} | 选中: {selected_count}"
+            self.stats_label.config(text=stats_text)
+            
+        except Exception as e:
+            self.logger.error(f"更新统计信息失败: {e}")
+            self.stats_label.config(text="统计信息加载失败")
