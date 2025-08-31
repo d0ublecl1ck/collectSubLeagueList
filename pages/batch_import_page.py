@@ -197,7 +197,7 @@ class BatchImportPage(BasePage):
         # 格式说明
         format_info = ttk.Label(
             sample_frame,
-            text="必填字段：赛事级别*, 赛事名称*, 国家/地区*, 联赛名称*, 赛事类型*, 赛事年份* | 支持格式：Excel(.xlsx), CSV(.csv), TAB分隔(.txt)",
+            text="必填字段：赛事级别*, 赛事名称*, 国家/地区*, 联赛名称*, 赛事类型*, 赛事年份* | 支持格式：Excel(.xlsx/.xls), CSV(.csv)",
             font=('Arial', 9),
             foreground='#666666'
         )
@@ -225,30 +225,24 @@ class BatchImportPage(BasePage):
             command=self.download_csv_sample,
             width=12
         )
-        csv_btn.pack(side=tk.LEFT, padx=(0, 8))
-        
-        # TAB样例按钮
-        tab_btn = ttk.Button(
-            sample_btn_frame,
-            text="TAB样例",
-            command=self.download_tab_sample,
-            width=12
-        )
-        tab_btn.pack(side=tk.LEFT)
+        csv_btn.pack(side=tk.LEFT)
     
     def browse_file(self):
         """浏览选择导入文件"""
         file_path = filedialog.askopenfilename(
             title="选择导入文件",
             filetypes=[
-                ("支持的文件", "*.xlsx;*.xls;*.txt;*.csv"),
+                ("支持的文件", "*.xlsx;*.xls;*.csv"),
                 ("Excel文件", "*.xlsx;*.xls"),
-                ("文本文件", "*.txt;*.csv"),
+                ("CSV文件", "*.csv"),
                 ("所有文件", "*.*")
             ]
         )
         
         if file_path:
+            # 选择新文件时清空之前的数据和结果
+            self.clear_import_data()
+            
             self.file_path_var.set(file_path)
             self.log_action("选择文件", f"文件路径: {file_path}")
     
@@ -270,11 +264,34 @@ class BatchImportPage(BasePage):
             if file_ext in ['.xlsx', '.xls']:
                 df = pd.read_excel(file_path)
                 separator_used = "Excel格式"
-            elif file_ext in ['.txt', '.csv']:
-                # 智能检测分隔符
-                df, separator_used = self.detect_separator_and_parse(file_path)
+            elif file_ext == '.csv':
+                # 尝试多种编码读取CSV文件
+                encodings = ['utf-8', 'gbk', 'gb2312', 'utf-8-sig', 'cp936', 'iso-8859-1']
+                df = None
+                used_encoding = None
+                
+                for encoding in encodings:
+                    try:
+                        df = pd.read_csv(file_path, encoding=encoding)
+                        used_encoding = encoding
+                        self.logger.info(f"成功使用 {encoding} 编码读取CSV文件")
+                        break
+                    except UnicodeDecodeError as e:
+                        self.logger.debug(f"尝试 {encoding} 编码失败: {e}")
+                        continue
+                    except Exception as e:
+                        self.logger.debug(f"使用 {encoding} 编码读取失败: {e}")
+                        continue
+                
+                if df is None:
+                    self.show_message("错误", 
+                        f"无法读取CSV文件，已尝试编码: {', '.join(encodings)}。\\n请检查文件编码或将文件转换为UTF-8编码。", 
+                        "error")
+                    return
+                
+                separator_used = f"CSV格式 ({used_encoding}编码)"
             else:
-                self.show_message("错误", "不支持的文件格式", "error")
+                self.show_message("错误", "不支持的文件格式，仅支持Excel(.xlsx/.xls)和CSV(.csv)文件", "error")
                 return
             
             # 标准化列名
@@ -373,30 +390,6 @@ class BatchImportPage(BasePage):
             self.logger.error(f"下载CSV样例失败: {e}")
             self.show_message("错误", f"下载失败: {str(e)}", "error")
     
-    def download_tab_sample(self):
-        """下载TAB分隔符样例文件"""
-        try:
-            # TAB样例内容（制表符分隔）
-            sample_content = """level\tevent\tcountry\tleague\ttype\tyear\tgroup\tlink\tlink_second
-1\t欧洲冠军联赛\t欧洲\t欧冠\t常规\t2024\tA组\thttps://example.com/ucl\t
-2\t英格兰足球超级联赛\t英格兰\t英超\t常规\t2024\t默认组\thttps://example.com/epl\t"""
-            
-            # 选择保存位置
-            file_path = filedialog.asksaveasfilename(
-                title="保存TAB分隔符样例文件",
-                defaultextension=".txt",
-                filetypes=[("文本文件", "*.txt"), ("制表符文件", "*.tsv")]
-            )
-            
-            if file_path:
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(sample_content)
-                self.show_message("成功", f"TAB样例文件已保存到：{file_path}", "info")
-                self.log_action("下载样例", f"TAB样例: {file_path}")
-                
-        except Exception as e:
-            self.logger.error(f"下载TAB样例失败: {e}")
-            self.show_message("错误", f"下载失败: {str(e)}", "error")
     
     def validate_data(self, df):
         """验证导入数据"""
@@ -628,6 +621,12 @@ class BatchImportPage(BasePage):
             minor_update_count = 0  # 一般更新数（仅更新字段）
             error_count = 0
             
+            # 记录详细信息
+            insert_details = []  # 新增记录详情
+            major_update_details = []  # 重要更新详情
+            minor_update_details = []  # 一般更新详情
+            error_details = []  # 错误详情
+            
             # 计算文件内重复统计
             file_duplicate_count = 0
             if self.duplicate_results:
@@ -659,11 +658,24 @@ class BatchImportPage(BasePage):
                                 # 更新任务字段
                                 self.update_task_fields(existing_task, row, group)
                                 major_update_count += 1
+                                major_update_details.append({
+                                    'row': index + 1,
+                                    'league': row['league'],
+                                    'year': row['year'],
+                                    'group': group,
+                                    'changes': change_details
+                                })
                                 self.logger.info(f"第{index + 1}行重要更新: {row['league']}-{row['year']}-{group}, 变更: {'; '.join(change_details)}")
                             else:
                                 # 只是一般更新
                                 self.update_task_fields(existing_task, row, group)
                                 minor_update_count += 1
+                                minor_update_details.append({
+                                    'row': index + 1,
+                                    'league': row['league'],
+                                    'year': row['year'],
+                                    'group': group
+                                })
                                 self.logger.debug(f"第{index + 1}行一般更新: {row['league']}-{row['year']}-{group}")
                         else:
                             # 创建新任务
@@ -680,25 +692,41 @@ class BatchImportPage(BasePage):
                             )
                             session.add(new_task)
                             insert_count += 1
+                            insert_details.append({
+                                'row': index + 1,
+                                'league': row['league'],
+                                'year': row['year'],
+                                'group': group
+                            })
                             self.logger.info(f"第{index + 1}行新增: {row['league']}-{row['year']}-{group}")
                         
                     except Exception as e:
                         error_count += 1
+                        error_details.append({
+                            'row': index + 1,
+                            'league': row.get('league', '未知'),
+                            'year': row.get('year', '未知'),
+                            'group': group,
+                            'error': str(e)
+                        })
                         self.logger.error(f"第{index + 1}行处理失败: {e}")
                 
                 # 提交事务
                 session.commit()
             
-            # 显示导入结果
+            # 在验证结果文本框中显示导入详情
+            self.display_import_results(insert_details, major_update_details, minor_update_details, error_details, file_duplicate_count)
+            
+            # 显示简化的结果消息
             result_parts = [f"新增: {insert_count}条", f"重要更新: {major_update_count}条", f"一般更新: {minor_update_count}条"]
             if file_duplicate_count > 0:
                 result_parts.append(f"文件内重复: {file_duplicate_count}条")
             if error_count > 0:
                 result_parts.append(f"错误: {error_count}条")
             
-            result_msg = "导入完成！" + ", ".join(result_parts)
-            self.show_message("导入结果", result_msg, "info" if error_count == 0 else "warning")
-            self.status_label.config(text=result_msg, foreground='green')
+            result_msg = ", ".join(result_parts)
+            self.show_message("导入完成", f"批量导入完成！{result_msg}\n\n详细信息请查看下方验证结果区域。", "info" if error_count == 0 else "warning")
+            self.status_label.config(text=f"导入完成！{result_msg}", foreground='green')
             
             # 记录日志
             log_parts = [f"新增{insert_count}条", f"重要更新{major_update_count}条", f"一般更新{minor_update_count}条"]
@@ -709,17 +737,15 @@ class BatchImportPage(BasePage):
             
             self.log_action("批量导入", "，".join(log_parts))
             
-            # 清空数据
-            if insert_count > 0 or major_update_count > 0 or minor_update_count > 0:
-                self.clear_import_data()
-            
         except Exception as e:
             self.logger.error(f"批量导入失败: {e}")
             self.show_message("错误", f"导入失败: {str(e)}", "error")
     
-    def clear_import_data(self):
+    def clear_import_data(self, clear_file_path=False):
         """清空导入数据"""
-        self.file_path_var.set("")
+        if clear_file_path:
+            self.file_path_var.set("")
+        
         self.current_data = None
         self.validation_results = []
         self.duplicate_results = []
@@ -735,69 +761,11 @@ class BatchImportPage(BasePage):
         
         # 禁用导入按钮
         self.import_btn.config(state='disabled')
-        self.status_label.config(text="请选择要导入的文件", foreground='blue')
+        self.status_label.config(text="请选择要导入的文件" if clear_file_path else "请解析选中的文件", foreground='blue')
         
-        self.log_action("清空导入数据")
+        if clear_file_path:
+            self.log_action("清空导入数据")
     
-    def detect_separator_and_parse(self, file_path):
-        """智能检测分隔符并解析文件"""
-        # 读取文件前两行来判断格式
-        with open(file_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        
-        if len(lines) < 2:
-            raise ValueError("文件内容不足，至少需要标题行和一行数据")
-        
-        header_line = lines[0].strip()
-        data_line = lines[1].strip()
-        
-        try:
-            # 使用 split() 自动分割标题行和数据行
-            header_parts = header_line.split()
-            data_parts = data_line.split()
-            
-            # 检查列数是否一致
-            if len(header_parts) != len(data_parts):
-                raise ValueError(f"标题行列数({len(header_parts)})与数据行列数({len(data_parts)})不一致")
-            
-            # 检查是否有足够的列
-            if len(data_parts) < 6:  # 至少需要6列必填字段
-                raise ValueError("数据列数不足，至少需要6列")
-            
-            # 根据标题行确定type字段的位置
-            type_index = -1
-            for i, col_name in enumerate(header_parts):
-                if col_name.lower() == 'type':
-                    type_index = i
-                    break
-            
-            if type_index == -1:
-                raise ValueError("未找到type列")
-            
-            # 验证type字段值
-            type_field = data_parts[type_index].strip()
-            valid_types = ["常规", "联二合并", "春秋合并", "东西拆分"]
-            if type_field not in valid_types:
-                raise ValueError(f"type字段值无效: {type_field}")
-            
-            # 根据列数判断是否包含link_second字段
-            if len(data_parts) not in [8, 9]:
-                raise ValueError(f"列数错误，应为8或9列，实际为{len(data_parts)}列")
-            
-            # 使用空白字符作为分隔符解析文件
-            df = pd.read_csv(file_path, sep='\s+', encoding='utf-8')
-            separator_used = "空白分隔符"
-            
-            # 记录实际的列顺序
-            self.logger.info(f"检测到文件格式：{separator_used}")
-            self.logger.info(f"列顺序：{list(df.columns)}")
-            self.logger.info(f"数据：列数={len(df.columns)}，行数={len(df)}")
-            
-            return df, separator_used
-            
-        except Exception as e:
-            self.logger.error(f"解析文件失败：{e}")
-            raise ValueError(f"无法解析文件格式: {str(e)}")
     
     def normalize_column_names(self, df):
         """标准化列名，支持多种列名变体"""
@@ -886,3 +854,61 @@ class BatchImportPage(BasePage):
                         })
         
         return duplicates
+    
+    def display_import_results(self, insert_details, major_update_details, minor_update_details, error_details, file_duplicate_count):
+        """在验证结果文本框中显示导入结果详情"""
+        self.validation_text.config(state='normal')
+        self.validation_text.delete(1.0, tk.END)
+        
+        # 导入完成标题
+        self.validation_text.insert(tk.END, "🎉 导入操作完成！\n\n")
+        
+        # 统计摘要
+        result_parts = [f"新增: {len(insert_details)}条", f"重要更新: {len(major_update_details)}条", f"一般更新: {len(minor_update_details)}条"]
+        if file_duplicate_count > 0:
+            result_parts.append(f"文件内重复: {file_duplicate_count}条")
+        if error_details:
+            result_parts.append(f"错误: {len(error_details)}条")
+        
+        self.validation_text.insert(tk.END, f"📊 统计摘要: {', '.join(result_parts)}\n\n")
+        
+        # 新增详情
+        if insert_details:
+            self.validation_text.insert(tk.END, f"📌 新增记录 ({len(insert_details)}条):\n")
+            for detail in insert_details:  # 显示全部
+                self.validation_text.insert(tk.END, f"  第{detail['row']}行: {detail['league']}-{detail['year']}-{detail['group']}\n")
+            self.validation_text.insert(tk.END, "\n")
+        
+        # 重要更新详情
+        if major_update_details:
+            self.validation_text.insert(tk.END, f"🔄 重要更新 ({len(major_update_details)}条):\n")
+            for detail in major_update_details:
+                self.validation_text.insert(tk.END, f"  第{detail['row']}行: {detail['league']}-{detail['year']}-{detail['group']}\n")
+                self.validation_text.insert(tk.END, f"    变更: {'; '.join(detail['changes'])}\n")
+            self.validation_text.insert(tk.END, "\n")
+        
+        # 一般更新详情
+        if minor_update_details:
+            self.validation_text.insert(tk.END, f"✏️ 一般更新 ({len(minor_update_details)}条):\n")
+            for detail in minor_update_details:  # 显示全部
+                self.validation_text.insert(tk.END, f"  第{detail['row']}行: {detail['league']}-{detail['year']}-{detail['group']}\n")
+            self.validation_text.insert(tk.END, "\n")
+        
+        # 错误详情
+        if error_details:
+            self.validation_text.insert(tk.END, f"❌ 错误记录 ({len(error_details)}条):\n")
+            for detail in error_details:
+                self.validation_text.insert(tk.END, f"  第{detail['row']}行: {detail['league']}-{detail['year']}-{detail['group']}\n")
+                self.validation_text.insert(tk.END, f"    错误: {detail['error']}\n")
+            self.validation_text.insert(tk.END, "\n")
+        
+        # 完成提示
+        if not error_details:
+            self.validation_text.insert(tk.END, "✅ 所有记录处理成功！")
+        else:
+            self.validation_text.insert(tk.END, f"⚠️ 共有 {len(error_details)} 条记录处理失败，请检查错误信息。")
+        
+        self.validation_text.config(state='disabled')
+        
+        # 自动调整文本框高度
+        self.auto_resize_validation_text()

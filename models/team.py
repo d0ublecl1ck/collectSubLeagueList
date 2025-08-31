@@ -2,7 +2,7 @@
 Team 模型定义 - 队伍信息表
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func, Index
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from loguru import logger
 
@@ -13,9 +13,10 @@ class Team(Base):
     """队伍信息表 - 存储参赛队伍详细信息"""
     __tablename__ = 'teams'
     
-    # 外键关联和复合主键
-    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), primary_key=True, nullable=False, comment='关联的任务ID（复合主键1）')
-    team_code = Column(Integer, primary_key=True, nullable=False, comment='队伍编码（复合主键2）')
+    # 主键和外键关联
+    id = Column(Integer, primary_key=True, autoincrement=True, comment='主键ID')
+    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, comment='关联的任务ID')
+    team_code = Column(Integer, nullable=False, comment='队伍编码')
     js_data_id = Column(Integer, ForeignKey('js_data_raw.id'), nullable=True, comment='关联的JS数据源ID')
     
     # 队伍基本信息
@@ -40,15 +41,17 @@ class Team(Base):
     task = relationship("Task", back_populates="teams")
     js_data_source = relationship("JsDataRaw", back_populates="teams")
     
-    # 索引优化建议
+    # 索引和约束优化
     __table_args__ = (
+        UniqueConstraint('task_id', 'team_code', name='uq_team_task_team_code'),  # task_id + team_code 唯一约束
         Index('idx_team_task_id', 'task_id'),
         Index('idx_team_js_data_id', 'js_data_id'),
         Index('idx_team_home_name_cn', 'home_name_cn'),
+        Index('idx_team_code', 'team_code'),
     )
     
     def __repr__(self):
-        return f"<Team(team_code={self.team_code}, home_name_cn='{self.home_name_cn}')>"
+        return f"<Team(id={self.id}, team_code={self.team_code}, home_name_cn='{self.home_name_cn}')>"
     
     def __str__(self):
         return f"Team[{self.team_code}]: {self.home_name_cn or self.home_name_en or 'Unknown'}"

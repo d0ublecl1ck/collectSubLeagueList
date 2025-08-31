@@ -102,6 +102,18 @@ class DataManagementPage(BasePage):
         
         # 绑定选择事件
         self.task_tree.bind('<<TreeviewSelect>>', self.on_task_selected)
+        
+        # 统计信息栏
+        stats_frame = ttk.Frame(search_frame)
+        stats_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        self.stats_label = ttk.Label(
+            stats_frame, 
+            text="总数: 0 | 显示: 0 | 选中: 0",
+            font=('Arial', 9),
+            foreground='blue'
+        )
+        self.stats_label.pack(side=tk.LEFT)
     
     def create_round_selector(self):
         """创建轮次选择区域"""
@@ -400,6 +412,30 @@ class DataManagementPage(BasePage):
         except Exception as e:
             self.logger.error(f"刷新任务数据失败: {e}")
             self.show_message("错误", f"加载任务失败: {str(e)}", "error")
+        
+        # 更新统计信息
+        self.update_stats()
+    
+    def update_stats(self):
+        """更新统计信息显示"""
+        try:
+            # 获取数据库总数
+            with self.get_db_session() as session:
+                total_count = session.query(Task).count()
+            
+            # 获取当前显示数量
+            visible_count = len(self.task_tree.get_children())
+            
+            # 获取选中数量
+            selected_count = len(self.task_tree.selection())
+            
+            # 更新显示
+            stats_text = f"总数: {total_count} | 显示: {visible_count} | 选中: {selected_count}"
+            self.stats_label.config(text=stats_text)
+            
+        except Exception as e:
+            self.logger.error(f"更新统计信息失败: {e}")
+            self.stats_label.config(text="统计信息加载失败")
     
     def on_task_search_change(self, *args):
         """任务搜索框内容变化事件"""
@@ -414,6 +450,7 @@ class DataManagementPage(BasePage):
         
         # 如果搜索框为空，显示所有项目
         if not search_text:
+            self.update_stats()
             return
         
         # 过滤显示匹配的项目
@@ -427,6 +464,9 @@ class DataManagementPage(BasePage):
                     self.task_tree.detach(item)
             except tk.TclError:
                 pass
+        
+        # 更新统计信息
+        self.update_stats()
     
     def on_task_selected(self, event=None):
         """任务选择事件处理"""
@@ -445,6 +485,9 @@ class DataManagementPage(BasePage):
         
         # 加载数据
         self.load_match_and_standings_data()
+        
+        # 更新统计信息
+        self.update_stats()
     
     def load_rounds_for_task(self, task_id):
         """为选定任务加载轮次选择"""

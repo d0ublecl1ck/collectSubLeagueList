@@ -3,6 +3,7 @@
 数据爬取页面 - 提供爬虫执行控制和进度监控界面
 """
 
+import random
 import re
 import threading
 import time
@@ -44,6 +45,9 @@ class DataCrawlPage(BasePage):
         # 初始化状态
         self.is_crawling = False
         self.crawl_thread = None
+        
+        # 异常任务记录
+        self.exception_tasks = []
 
         # 加载任务列表
         self.refresh_task_list()
@@ -53,26 +57,81 @@ class DataCrawlPage(BasePage):
         selection_frame = ttk.LabelFrame(self.frame, text="选择爬取任务", padding=15)
         selection_frame.pack(fill=tk.X, pady=(0, 15))
 
-        # 任务列表
-        ttk.Label(selection_frame, text="待爬取任务:").grid(row=0, column=0, sticky='w', pady=(0, 5))
+        # 工具栏
+        toolbar_frame = ttk.Frame(selection_frame)
+        toolbar_frame.grid(row=0, column=0, columnspan=3, sticky='ew', pady=(0, 10))
+        
+        # 刷新按钮
+        refresh_btn = ttk.Button(toolbar_frame, text="刷新任务列表", command=self.refresh_task_list)
+        refresh_btn.pack(side=tk.LEFT, padx=(0, 10))
 
-        self.task_listbox = tk.Listbox(selection_frame, height=6, selectmode=tk.MULTIPLE)
-        self.task_listbox.grid(row=1, column=0, columnspan=2, sticky='ew', pady=(0, 10))
+        # 全选按钮
+        select_all_btn = ttk.Button(toolbar_frame, text="全选", command=self.select_all_tasks)
+        select_all_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 反选按钮
+        invert_btn = ttk.Button(toolbar_frame, text="反选", command=self.invert_selection)
+        invert_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 搜索框
+        search_frame = ttk.Frame(toolbar_frame)
+        search_frame.pack(side=tk.RIGHT)
+        
+        ttk.Label(search_frame, text="搜索:").pack(side=tk.LEFT, padx=(0, 5))
+        self.search_var = tk.StringVar()
+        self.search_var.trace('w', self.on_search_change)
+        search_entry = ttk.Entry(search_frame, textvariable=self.search_var, width=20)
+        search_entry.pack(side=tk.LEFT)
+
+        # 任务列表表格
+        columns = ('ID', '联赛名称', '年份', '国家', '类型', '分组')
+        self.task_tree = ttk.Treeview(selection_frame, columns=columns, show='headings', height=8, selectmode='extended')
+        
+        # 设置列标题和宽度
+        self.task_tree.heading('ID', text='ID')
+        self.task_tree.heading('联赛名称', text='联赛名称')
+        self.task_tree.heading('年份', text='年份') 
+        self.task_tree.heading('国家', text='国家')
+        self.task_tree.heading('类型', text='类型')
+        self.task_tree.heading('分组', text='分组')
+        
+        self.task_tree.column('ID', width=50, anchor='center')
+        self.task_tree.column('联赛名称', width=200)
+        self.task_tree.column('年份', width=80, anchor='center')
+        self.task_tree.column('国家', width=100)
+        self.task_tree.column('类型', width=100, anchor='center')
+        self.task_tree.column('分组', width=100, anchor='center')
 
         # 滚动条
-        task_scrollbar = ttk.Scrollbar(selection_frame, orient=tk.VERTICAL, command=self.task_listbox.yview)
-        self.task_listbox.config(yscrollcommand=task_scrollbar.set)
-        task_scrollbar.grid(row=1, column=2, sticky='ns', pady=(0, 10))
+        task_scrollbar_y = ttk.Scrollbar(selection_frame, orient=tk.VERTICAL, command=self.task_tree.yview)
+        task_scrollbar_x = ttk.Scrollbar(selection_frame, orient=tk.HORIZONTAL, command=self.task_tree.xview)
+        self.task_tree.configure(yscrollcommand=task_scrollbar_y.set, xscrollcommand=task_scrollbar_x.set)
 
-        # 刷新按钮
-        refresh_btn = ttk.Button(selection_frame, text="刷新任务列表", command=self.refresh_task_list)
-        refresh_btn.grid(row=2, column=0, sticky='w')
+        # 布局
+        self.task_tree.grid(row=1, column=0, sticky='nsew', pady=(0, 10))
+        task_scrollbar_y.grid(row=1, column=1, sticky='ns', pady=(0, 10))
+        task_scrollbar_x.grid(row=2, column=0, sticky='ew')
 
-        # 全选/全不选按钮
-        select_all_btn = ttk.Button(selection_frame, text="全选", command=self.select_all_tasks)
-        select_all_btn.grid(row=2, column=1, padx=(10, 0), sticky='w')
-
+        selection_frame.grid_rowconfigure(1, weight=1)
         selection_frame.grid_columnconfigure(0, weight=1)
+        
+        # 统计信息栏
+        stats_frame = ttk.Frame(selection_frame)
+        stats_frame.grid(row=3, column=0, columnspan=2, sticky='ew', pady=(5, 0))
+        
+        self.task_stats_label = ttk.Label(
+            stats_frame, 
+            text="总数: 0 | 显示: 0 | 选中: 0",
+            font=('Arial', 9),
+            foreground='blue'
+        )
+        self.task_stats_label.pack(side=tk.LEFT)
+        
+        # 初始化完整项目列表（用于搜索状态管理）
+        self.all_task_items = []
+        
+        # 绑定选择事件以更新统计信息
+        self.task_tree.bind('<<TreeviewSelect>>', self.on_task_selection_changed)
 
     def create_crawl_controls(self):
         """创建爬取控制区域"""
@@ -97,7 +156,10 @@ class DataCrawlPage(BasePage):
         button_frame = ttk.Frame(control_frame)
         button_frame.pack(fill=tk.X)
 
-        self.start_btn = ttk.Button(button_frame, text="开始爬取", command=self.start_crawl, width=15)
+        self.start_all_btn = ttk.Button(button_frame, text="全量爬取", command=self.start_crawl_all, width=15)
+        self.start_all_btn.pack(side=tk.LEFT, padx=(0, 10))
+
+        self.start_btn = ttk.Button(button_frame, text="爬取选中", command=self.start_crawl, width=15)
         self.start_btn.pack(side=tk.LEFT, padx=(0, 10))
 
         self.pause_btn = ttk.Button(button_frame, text="暂停", command=self.pause_crawl, width=15, state=tk.DISABLED)
@@ -163,52 +225,193 @@ class DataCrawlPage(BasePage):
 
     def refresh_task_list(self):
         """刷新任务列表"""
-        self.task_listbox.delete(0, tk.END)
+        try:
+            # 清空现有数据和完整项目列表
+            for item in self.task_tree.get_children():
+                self.task_tree.delete(item)
+            self.all_task_items = []
 
-        with self.get_db_session() as session:
-            tasks = session.query(Task).order_by(Task.created_at.desc()).all()
+            with self.get_db_session() as session:
+                tasks = session.query(Task).order_by(Task.created_at.desc()).all()
 
-            for task in tasks:
-                display_text = f"[{task.id}] {task.league} ({task.year}) - {task.country}"
-                self.task_listbox.insert(tk.END, display_text)
+                for task in tasks:
+                    item_id = self.task_tree.insert('', 'end', values=(
+                        task.id,
+                        task.league,
+                        task.year,
+                        task.country,
+                        task.type,
+                        task.group
+                    ))
+                    # 保存到完整项目列表
+                    self.all_task_items.append(item_id)
 
-        self.add_log(f"加载了 {len(tasks)} 个任务")
+            self.add_log(f"加载了 {len(tasks)} 个任务")
+        except Exception as e:
+            self.logger.error(f"刷新任务列表失败: {e}")
+            self.add_log(f"刷新任务列表失败: {e}", "ERROR")
+        
+        # 更新统计信息
+        self.update_stats()
+    
+    def update_stats(self):
+        """更新统计信息显示"""
+        try:
+            # 获取数据库总数
+            with self.get_db_session() as session:
+                total_count = session.query(Task).count()
+            
+            # 获取当前显示数量
+            visible_count = len(self.task_tree.get_children())
+            
+            # 获取选中数量
+            selected_count = len(self.task_tree.selection())
+            
+            # 更新显示
+            stats_text = f"总数: {total_count} | 显示: {visible_count} | 选中: {selected_count}"
+            self.task_stats_label.config(text=stats_text)
+            
+        except Exception as e:
+            self.logger.error(f"更新统计信息失败: {e}")
+            self.task_stats_label.config(text="统计信息加载失败")
+    
+    def on_task_selection_changed(self, event=None):
+        """任务选择变化事件处理"""
+        self.update_stats()
 
     def select_all_tasks(self):
-        """全选/全不选任务"""
-        if self.task_listbox.size() == 0:
+        """全选所有可见任务"""
+        try:
+            # 获取所有可见项目（考虑搜索过滤）
+            all_items = self.task_tree.get_children()
+            if all_items:
+                # 检查当前是否全选
+                selected_count = len(self.task_tree.selection())
+                total_count = len(all_items)
+                
+                if selected_count == total_count:
+                    # 全不选
+                    self.task_tree.selection_remove(all_items)
+                else:
+                    # 全选
+                    self.task_tree.selection_set(all_items)
+                
+                # 更新统计信息
+                self.update_stats()
+            else:
+                self.add_log("暂无任务可选择", "INFO")
+        except Exception as e:
+            self.logger.error(f"全选操作失败: {e}")
+            self.add_log(f"全选操作失败: {e}", "ERROR")
+
+    def invert_selection(self):
+        """反选任务"""
+        try:
+            # 获取当前选中项目和所有可见项目
+            current_selection = set(self.task_tree.selection())
+            all_items = set(self.task_tree.get_children())
+            
+            if not all_items:
+                self.add_log("暂无任务可操作", "INFO")
+                return
+            
+            # 计算反选后的项目
+            new_selection = all_items - current_selection
+            
+            # 应用新的选择
+            self.task_tree.selection_set(list(new_selection))
+            
+            # 更新统计信息
+            self.update_stats()
+            
+            selected_count = len(new_selection)
+            unselected_count = len(current_selection)
+            self.add_log(f"反选完成: 新选中 {selected_count} 个，取消 {unselected_count} 个", "INFO")
+            
+        except Exception as e:
+            self.logger.error(f"反选操作失败: {e}")
+            self.add_log(f"反选操作失败: {e}", "ERROR")
+
+    def on_search_change(self, *args):
+        """搜索框内容变化事件"""
+        search_text = self.search_var.get().lower()
+        
+        # 首先重新显示所有项目（解决搜索状态管理问题）
+        for item in self.all_task_items:
+            try:
+                self.task_tree.reattach(item, '', 'end')
+            except tk.TclError:
+                # 如果项目已经被删除或不存在，跳过
+                pass
+        
+        # 如果搜索框为空，显示所有项目
+        if not search_text:
+            self.update_stats()
+            return
+        
+        # 过滤显示匹配的项目，使用完整项目列表确保所有数据都参与搜索
+        for item in self.all_task_items:
+            try:
+                values = self.task_tree.item(item)['values']
+                # 在所有字段中搜索：ID、联赛名称、年份、国家、类型、分组
+                if any(search_text in str(value).lower() for value in values):
+                    self.task_tree.reattach(item, '', 'end')
+                else:
+                    self.task_tree.detach(item)
+            except tk.TclError:
+                # 如果项目已经被删除或不存在，跳过
+                pass
+        
+        # 更新统计信息
+        self.update_stats()
+
+    def start_crawl_all(self):
+        """全量爬取"""
+        all_items = self.task_tree.get_children()
+        if not all_items:
+            self.show_message("提示", "没有可爬取的任务", "warning")
             return
 
-        # 检查当前是否全选
-        selected_count = len(self.task_listbox.curselection())
-        total_count = self.task_listbox.size()
-
-        if selected_count == total_count:
-            # 全不选
-            self.task_listbox.selection_clear(0, tk.END)
-        else:
-            # 全选
-            self.task_listbox.selection_set(0, tk.END)
-
-    def start_crawl(self):
-        """开始爬取"""
-        selected_indices = self.task_listbox.curselection()
-        if not selected_indices:
-            self.show_message("提示", "请选择要爬取的任务", "warning")
-            return
+        # 自动选择所有任务
+        self.task_tree.selection_set(all_items)
+        selected_items = self.task_tree.selection()
 
         self.is_crawling = True
+        self.exception_tasks = []  # 清空异常任务列表
+        self.start_all_btn.config(state=tk.DISABLED)
         self.start_btn.config(state=tk.DISABLED)
         self.pause_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.NORMAL)
 
         # 启动爬取线程
-        self.crawl_thread = threading.Thread(target=self.crawl_worker, args=(selected_indices,))
+        self.crawl_thread = threading.Thread(target=self.crawl_worker, args=(selected_items,))
         self.crawl_thread.daemon = True
         self.crawl_thread.start()
 
-        self.add_log(f"开始爬取 {len(selected_indices)} 个任务")
-        self.log_action("开始爬取", f"任务数: {len(selected_indices)}")
+        self.add_log(f"开始全量爬取 {len(selected_items)} 个任务")
+        self.log_action("全量爬取", f"任务数: {len(selected_items)}")
+
+    def start_crawl(self):
+        """爬取选中任务"""
+        selected_items = self.task_tree.selection()
+        if not selected_items:
+            self.show_message("提示", "请选择要爬取的任务", "warning")
+            return
+
+        self.is_crawling = True
+        self.exception_tasks = []  # 清空异常任务列表
+        self.start_all_btn.config(state=tk.DISABLED)
+        self.start_btn.config(state=tk.DISABLED)
+        self.pause_btn.config(state=tk.NORMAL)
+        self.stop_btn.config(state=tk.NORMAL)
+
+        # 启动爬取线程
+        self.crawl_thread = threading.Thread(target=self.crawl_worker, args=(selected_items,))
+        self.crawl_thread.daemon = True
+        self.crawl_thread.start()
+
+        self.add_log(f"开始爬取选中 {len(selected_items)} 个任务")
+        self.log_action("爬取选中", f"任务数: {len(selected_items)}")
 
     def pause_crawl(self):
         """暂停爬取"""
@@ -218,6 +421,7 @@ class DataCrawlPage(BasePage):
     def stop_crawl(self):
         """停止爬取"""
         self.is_crawling = False
+        self.start_all_btn.config(state=tk.NORMAL)
         self.start_btn.config(state=tk.NORMAL)
         self.pause_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.DISABLED)
@@ -228,15 +432,15 @@ class DataCrawlPage(BasePage):
         self.add_log("爬取已停止")
         self.log_action("停止爬取")
 
-    def crawl_worker(self, selected_indices):
+    def crawl_worker(self, selected_items):
         """爬取工作线程"""
         start_time = time.time()
-        total_tasks = len(selected_indices)
+        total_tasks = len(selected_items)
         success_count = 0
         failed_count = 0
 
         try:
-            for i, index in enumerate(selected_indices):
+            for i, item in enumerate(selected_items):
                 if not self.is_crawling:
                     break
 
@@ -245,8 +449,12 @@ class DataCrawlPage(BasePage):
                 self.overall_progress['value'] = progress_value
 
                 # 获取任务信息
-                task_text = self.task_listbox.get(index)
-                task_id = int(task_text.split(']')[0][1:])
+                values = self.task_tree.item(item)['values']
+                task_id = values[0]
+                league_name = values[1]
+                year = values[2]
+                country = values[3]
+                task_text = f"[{task_id}] {league_name} ({year}) - {country}"
 
                 # 更新当前任务显示
                 self.current_task_label.config(text=f"正在爬取: {task_text}")
@@ -279,6 +487,7 @@ class DataCrawlPage(BasePage):
             self.current_progress.stop()
             self.current_task_label.config(text="爬取完成")
 
+            self.start_all_btn.config(state=tk.NORMAL)
             self.start_btn.config(state=tk.NORMAL)
             self.pause_btn.config(state=tk.DISABLED)
             self.stop_btn.config(state=tk.DISABLED)
@@ -286,6 +495,9 @@ class DataCrawlPage(BasePage):
             total_time = time.time() - start_time
             time_str = time.strftime('%H:%M:%S', time.gmtime(total_time))
             self.add_log(f"爬取完成! 成功: {success_count}, 失败: {failed_count}, 总用时: {time_str}")
+            
+            # 处理异常任务
+            self.handle_exception_tasks()
 
     def crawl_task(self, task_id):
         """执行真实的任务爬取"""
@@ -297,25 +509,43 @@ class DataCrawlPage(BasePage):
 
             self.logger.info(f"开始爬取任务: {task.league} ({task.type})")
 
-            # 根据任务类型执行不同的爬取策略
-            if task.type == '常规':
-                success = self.crawl_regular_task(task, session)
-            elif task.type == '东西拆分':
-                success = self.crawl_east_west_split_task(task, session)
-            elif task.type in ['联二合并', '春秋合并']:
-                success = self.crawl_merge_task(task, session)
-            else:
-                self.logger.error(f"未知的任务类型: {task.type}")
+            try:
+                # 根据任务类型执行不同的爬取策略
+                if task.type == '常规':
+                    success = self.crawl_regular_task(task, session)
+                elif task.type == '东西拆分':
+                    success = self.crawl_east_west_split_task(task, session)
+                elif task.type in ['联二合并', '春秋合并']:
+                    success = self.crawl_merge_task(task, session)
+                else:
+                    self.logger.error(f"未知的任务类型: {task.type}")
+                    return False
+
+                if success:
+                    task.last_crawl_time = datetime.now()
+                    session.commit()
+                    self.logger.info(f"任务 {task_id} 爬取成功")
+                else:
+                    self.logger.error(f"任务 {task_id} 爬取失败")
+
+                return success
+                
+            except Exception as e:
+                # 记录异常任务
+                exception_info = {
+                    'task_id': task_id,
+                    'league': task.league,
+                    'country': task.country,
+                    'year': task.year,
+                    'type': task.type,
+                    'link': task.link,
+                    'link_second': task.link_second,
+                    'error': str(e),
+                    'error_type': type(e).__name__
+                }
+                self.exception_tasks.append(exception_info)
+                self.logger.error(f"任务 {task_id} 发生异常: {e}")
                 return False
-
-            if success:
-                task.last_crawl_time = datetime.now()
-                session.commit()
-                self.logger.info(f"任务 {task_id} 爬取成功")
-            else:
-                self.logger.error(f"任务 {task_id} 爬取失败")
-
-            return success
 
     def crawl_regular_task(self, task, session):
         """爬取常规任务"""
@@ -482,19 +712,38 @@ class DataCrawlPage(BasePage):
 
         return js_url, version
 
-    def fetch_js_data(self, js_url, version):
-        """获取JS数据内容"""
-        try:
-            params = {"version": version}
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
-            }
-            response = requests.get(js_url, params=params, headers=headers, timeout=15)
-            response.raise_for_status()
-            return response.text
-        except Exception as e:
-            self.logger.error(f"获取JS数据失败 {js_url}: {e}")
-            return None
+    def fetch_js_data(self, js_url, version, max_retries=3, retry_delay_min=5, retry_delay_max=10):
+        """获取JS数据内容，支持443错误重试"""
+        params = {"version": version}
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+        }
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(js_url, params=params, headers=headers, timeout=15)
+                response.raise_for_status()
+                return response.text
+            except requests.exceptions.HTTPError as e:
+                if response.status_code == 443:
+                    if attempt < max_retries - 1:  # 不是最后一次尝试
+                        delay = random.randint(retry_delay_min, retry_delay_max)
+                        self.logger.warning(f"遇到443错误，第{attempt + 1}次重试中，等待{delay}秒... {js_url}")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        self.logger.error(f"获取JS数据失败，已重试{max_retries}次 {js_url}: {e}")
+                        return None
+                else:
+                    # 其他HTTP错误直接返回
+                    self.logger.error(f"获取JS数据失败 {js_url}: {e}")
+                    return None
+            except Exception as e:
+                # 非HTTP错误直接返回
+                self.logger.error(f"获取JS数据失败 {js_url}: {e}")
+                return None
+        
+        return None
 
     def parse_team_data(self, js_data):
         """解析球队数据（arrTeam）"""
@@ -549,7 +798,12 @@ class DataCrawlPage(BasePage):
             round_str = re.sub(r',\]', ',None]', round_str)
 
             # 解析数组数据
-            round_matches = eval(round_str)
+            try:
+                round_matches = eval(round_str)
+            except (SyntaxError, ValueError) as e:
+                # 抛出异常，让上层处理
+                raise ValueError(f"解析轮次 {round_num} 数据时发生错误: {e}")
+            
             parsed_matches = []
 
             for match_array in round_matches:
@@ -1101,3 +1355,35 @@ class DataCrawlPage(BasePage):
             with open(filename, 'w', encoding='utf-8') as f:
                 f.write(self.log_text.get(1.0, tk.END))
             self.show_message("成功", f"日志已保存到: {filename}", "info")
+
+    def handle_exception_tasks(self):
+        """处理异常任务，保存到文件并提示用户"""
+        if not self.exception_tasks:
+            return
+        
+        import json
+        import os
+        from datetime import datetime
+        
+        # 生成异常文件名
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"异常任务_{timestamp}.json"
+        filepath = os.path.join(os.getcwd(), filename)
+        
+        try:
+            # 保存异常任务到JSON文件
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(self.exception_tasks, f, ensure_ascii=False, indent=2)
+            
+            exception_count = len(self.exception_tasks)
+            self.add_log(f"⚠️ 发现 {exception_count} 个异常任务，已保存到: {filename}", "ERROR")
+            self.show_message("异常任务提醒", 
+                            f"本次爬取发现 {exception_count} 个异常任务\n文件已保存到: {filename}\n\n请检查这些任务的数据源是否正常", 
+                            "warning")
+            
+            # 清空异常任务列表，为下次爬取准备
+            self.exception_tasks = []
+            
+        except Exception as e:
+            self.add_log(f"保存异常任务文件失败: {e}", "ERROR")
+            self.logger.error(f"保存异常任务文件失败: {e}")

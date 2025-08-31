@@ -5,7 +5,17 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="989c80a2-46b1-44e9-8b3b-dc81bdfcc8a9" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/inp.txt" beforeDir="false" afterPath="$PROJECT_DIR$/inp.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/collectSubLeagueListLast.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/collectSubLeagueListLast.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/generate_inp.py" beforeDir="false" afterPath="$PROJECT_DIR$/generate_inp.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/inp.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/inp_23.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/inp_25.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/team.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/team.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pages/batch_import_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/pages/batch_import_page.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pages/data_crawl_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/pages/data_crawl_page.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pages/data_management_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/pages/data_management_page.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pages/input_management_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/pages/input_management_page.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -44,30 +54,31 @@
     <option name="showLibraryContents" value="true" />
     <option name="showVisibilityIcons" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Python.a.executor": "Run",
-    "Python.data_management_page.executor": "Run",
-    "Python.generate_inp.executor": "Run",
-    "Python.main.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "master",
-    "last_opened_file_path": "D:/BaiduSyncdisk/Workspace/PythonWorkSpace/spiderProjects/titan007All/collectSubLeagueListCom/collectSubLeagueListLast",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Python.a.executor&quot;: &quot;Run&quot;,
+    &quot;Python.data_management_page.executor&quot;: &quot;Run&quot;,
+    &quot;Python.generate_inp.executor&quot;: &quot;Run&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/BaiduSyncdisk/Workspace/PythonWorkSpace/spiderProjects/titan007All/collectSubLeagueListCom/collectSubLeagueListLast&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.intellij.pycharm.community.ide.impl.configuration.PythonContentEntriesConfigurable&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="D:\BaiduSyncdisk\Workspace\PythonWorkSpace\spiderProjects\titan007All\collectSubLeagueListCom\collectSubLeagueListLast" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.generate_inp">
+  <component name="RunManager" selected="Python.main">
     <configuration name="a" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="collectSubLeagueListLast" />
       <option name="ENV_FILES" value="" />
@@ -191,7 +202,10 @@
       <workItem from="1756224593180" duration="7997000" />
       <workItem from="1756405551189" duration="6576000" />
       <workItem from="1756478602009" duration="4344000" />
-      <workItem from="1756485183741" duration="4585000" />
+      <workItem from="1756485183741" duration="4937000" />
+      <workItem from="1756558631819" duration="12000" />
+      <workItem from="1756558673971" duration="3251000" />
+      <workItem from="1756596261927" duration="5530000" />
     </task>
     <servers />
   </component>
@@ -203,7 +217,7 @@
       <breakpoints>
         <line-breakpoint suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/pages/data_crawl_page.py</url>
-          <line>1008</line>
+          <line>1262</line>
           <option name="timeStamp" value="7" />
         </line-breakpoint>
       </breakpoints>
@@ -211,8 +225,8 @@
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/collectSubLeagueListLast$a.coverage" NAME="a 覆盖结果" MODIFIED="1756487236452" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/collectSubLeagueListLast$generate_inp.coverage" NAME="generate_inp 覆盖结果" MODIFIED="1756489629247" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/collectSubLeagueListLast$main.coverage" NAME="main 覆盖结果" MODIFIED="1756489836667" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/collectSubLeagueListLast$generate_inp.coverage" NAME="generate_inp 覆盖结果" MODIFIED="1756596711215" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/collectSubLeagueListLast$main.coverage" NAME="main 覆盖结果" MODIFIED="1756601867174" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/collectSubLeagueListLast$data_management_page.coverage" NAME="data_management_page 覆盖结果" MODIFIED="1756484343503" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/pages" />
   </component>
 </project>

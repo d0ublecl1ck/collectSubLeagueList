@@ -173,6 +173,28 @@ class FootballDataApp:
         """标签页切换事件处理"""
         selected_tab = self.notebook.select()
         tab_text = self.notebook.tab(selected_tab, "text")
+        
+        # 获取当前选中的标签页索引
+        try:
+            current_tab_index = self.notebook.index(selected_tab)
+            
+            # 根据标签页索引调用相应页面的刷新方法
+            if current_tab_index == 1:  # 输入管理页面
+                if hasattr(self, 'input_management_page') and hasattr(self.input_management_page, 'refresh_data'):
+                    self.input_management_page.refresh_data()
+                    logger.debug("已刷新输入管理页面任务列表")
+            elif current_tab_index == 3:  # 数据爬取页面
+                if hasattr(self, 'data_crawl_page') and hasattr(self.data_crawl_page, 'refresh_task_list'):
+                    self.data_crawl_page.refresh_task_list()
+                    logger.debug("已刷新数据爬取页面任务列表")
+            elif current_tab_index == 4:  # 数据管理页面
+                if hasattr(self, 'data_management_page') and hasattr(self.data_management_page, 'refresh_task_data'):
+                    self.data_management_page.refresh_task_data()
+                    logger.debug("已刷新数据管理页面任务列表")
+                    
+        except Exception as e:
+            logger.error(f"标签页切换时刷新数据失败: {e}")
+        
         self.update_status(f"当前页面: {tab_text}")
         logger.debug(f"切换到页面: {tab_text}")
         

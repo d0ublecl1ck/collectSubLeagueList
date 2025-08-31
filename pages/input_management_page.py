@@ -3,7 +3,7 @@
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 from datetime import datetime
 import re
 import os
@@ -74,6 +74,15 @@ class InputManagementPage(BasePage):
             width=12
         )
         export_btn.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # 生成其他年份按钮
+        generate_year_btn = ttk.Button(
+            toolbar_frame,
+            text="生成其他年份",
+            command=self.generate_other_year,
+            width=12
+        )
+        generate_year_btn.pack(side=tk.LEFT, padx=(10, 0))
         
         # 搜索框
         search_frame = ttk.Frame(toolbar_frame)
@@ -690,3 +699,177 @@ class InputManagementPage(BasePage):
         except Exception as e:
             self.logger.error(f"更新统计信息失败: {e}")
             self.stats_label.config(text="统计信息加载失败")
+    
+    def generate_other_year(self):
+        """生成其他年份的任务数据"""
+        try:
+            # 显示年份输入对话框
+            year_input = simpledialog.askstring(
+                "生成其他年份",
+                "请输入目标年份 (如: 2022)\n"
+                "系统将自动生成跨年格式 (如: 2022-2023)\n"
+                "并替换链接中对应的年份",
+                initialvalue=""
+            )
+            
+            if not year_input:
+                return  # 用户取消了输入
+            
+            # 验证年份输入
+            is_valid, error_msg = self.validate_year_input(year_input)
+            if not is_valid:
+                self.show_message("输入错误", error_msg, "error")
+                return
+            
+            target_year = int(year_input)
+            
+            # 确认操作
+            confirm_msg = (f"确定要为年份 {target_year} 生成新的任务数据吗？\n\n"
+                          f"系统将基于现有所有任务生成对应的 {target_year} 年份数据\n"
+                          f"跨年格式将生成为 {target_year}-{target_year + 1}")
+            
+            if not messagebox.askyesno("确认生成", confirm_msg):
+                return
+            
+            # 执行批量生成
+            success_count, skip_count, error_count = self.generate_tasks_for_year(target_year)
+            
+            # 显示结果
+            result_msg = (f"年份 {target_year} 数据生成完成！\n\n"
+                         f"✓ 成功生成: {success_count} 条新任务\n"
+                         f"⚠ 已存在跳过: {skip_count} 条任务\n"
+                         f"✗ 处理失败: {error_count} 条任务")
+            
+            if success_count > 0:
+                self.show_message("生成成功", result_msg, "info")
+                # 刷新界面显示
+                self.refresh_data()
+                self.log_action("生成其他年份", f"为年份 {target_year} 成功生成 {success_count} 条新任务")
+            else:
+                self.show_message("生成结果", result_msg, "warning")
+                
+        except Exception as e:
+            self.logger.error(f"生成其他年份失败: {e}")
+            self.show_message("错误", f"生成失败: {str(e)}", "error")
+    
+    def validate_year_input(self, year_str):
+        """验证年份输入"""
+        if not year_str or not year_str.strip():
+            return False, "年份不能为空"
+        
+        year_str = year_str.strip()
+        
+        if not year_str.isdigit():
+            return False, "年份必须为数字"
+        
+        if len(year_str) != 4:
+            return False, "年份必须为4位数字（如：2022）"
+        
+        year = int(year_str)
+        if year < 1900 or year > 2100:
+            return False, "年份范围必须在1900-2100之间"
+        
+        return True, ""
+    
+    def transform_year_field(self, original_year, target_year):
+        """转换year字段的年份"""
+        if not original_year:
+            return str(target_year)
+        
+        original_str = str(original_year).strip()
+        
+        # 匹配单年格式 "2023"
+        if re.match(r'^\d{4}$', original_str):
+            return str(target_year)
+        
+        # 匹配跨年格式 "2022-2023"
+        elif re.match(r'^\d{4}-\d{4}$', original_str):
+            return f"{target_year}-{target_year + 1}"
+        
+        # 其他格式保持不变
+        else:
+            return original_str
+    
+    def transform_url_year(self, original_url, target_year):
+        """转换URL中的年份"""
+        if not original_url or not original_url.strip():
+            return original_url
+        
+        url = original_url.strip()
+        
+        # 匹配单年格式：/2023/
+        pattern1 = r'/(\d{4})/'
+        if re.search(pattern1, url):
+            return re.sub(pattern1, f'/{target_year}/', url)
+        
+        # 匹配跨年格式：/2022-2023/
+        pattern2 = r'/(\d{4})-(\d{4})/'
+        if re.search(pattern2, url):
+            return re.sub(pattern2, f'/{target_year}-{target_year + 1}/', url)
+        
+        # 无匹配则保持不变
+        return url
+    
+    def check_task_exists(self, session, league, year, group):
+        """检查任务是否已存在（基于uk_league_year_group约束）"""
+        existing = session.query(Task).filter(
+            Task.league == league,
+            Task.year == year,
+            Task.group == group
+        ).first()
+        return existing is not None
+    
+    def generate_tasks_for_year(self, target_year):
+        """为指定年份生成任务"""
+        success_count = 0
+        skip_count = 0
+        error_count = 0
+        
+        try:
+            with self.get_db_session() as session:
+                # 读取所有现有任务
+                original_tasks = session.query(Task).all()
+                
+                if not original_tasks:
+                    return 0, 0, 0
+                
+                for original_task in original_tasks:
+                    try:
+                        # 生成新任务数据
+                        new_year = self.transform_year_field(original_task.year, target_year)
+                        new_link = self.transform_url_year(original_task.link, target_year)
+                        new_link_second = self.transform_url_year(original_task.link_second, target_year)
+                        
+                        # 检查是否已存在（基于uk_league_year_group约束）
+                        if self.check_task_exists(session, original_task.league, new_year, original_task.group):
+                            skip_count += 1
+                            continue
+                        
+                        # 创建新任务
+                        new_task = Task(
+                            level=original_task.level,
+                            event=original_task.event,
+                            country=original_task.country,
+                            league=original_task.league,
+                            type=original_task.type,
+                            year=new_year,
+                            group=original_task.group,
+                            link=new_link,
+                            link_second=new_link_second
+                        )
+                        
+                        session.add(new_task)
+                        success_count += 1
+                        
+                    except Exception as e:
+                        error_count += 1
+                        self.logger.error(f"处理任务 {original_task.id} 失败: {e}")
+                
+                # 提交所有更改
+                session.commit()
+                
+        except Exception as e:
+            self.logger.error(f"批量生成任务失败: {e}")
+            raise
+        
+        return success_count, skip_count, error_count
