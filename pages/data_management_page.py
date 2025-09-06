@@ -167,10 +167,13 @@ class DataManagementPage(BasePage):
         match_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 10))
         
         # 创建 Treeview
-        match_columns = ('轮次', '时间', '主队', '主分', '客分', '客队', '状态')
+        match_columns = ('ID', '联赛', '赛季年份', '轮次', '时间', '主队', '主分', '客分', '客队', '状态')
         self.match_tree = ttk.Treeview(match_frame, columns=match_columns, show='headings', height=15)
         
         # 设置列标题和宽度
+        self.match_tree.heading('ID', text='ID')
+        self.match_tree.heading('联赛', text='联赛')
+        self.match_tree.heading('赛季年份', text='赛季年份')
         self.match_tree.heading('轮次', text='轮次')
         self.match_tree.heading('时间', text='时间')
         self.match_tree.heading('主队', text='主队')
@@ -179,6 +182,9 @@ class DataManagementPage(BasePage):
         self.match_tree.heading('客队', text='客队')
         self.match_tree.heading('状态', text='状态')
         
+        self.match_tree.column('ID', width=60, anchor='center')
+        self.match_tree.column('联赛', width=120, anchor='center')
+        self.match_tree.column('赛季年份', width=80, anchor='center')
         self.match_tree.column('轮次', width=50, anchor='center')
         self.match_tree.column('时间', width=120, anchor='center')
         self.match_tree.column('主队', width=100, anchor='center')
@@ -204,10 +210,12 @@ class DataManagementPage(BasePage):
         standings_frame.grid(row=0, column=1, sticky='nsew', padx=(10, 0))
         
         # 创建 Treeview
-        standings_columns = ('排名', '队名', '场次', '胜', '平', '负', '进球', '失球', '净胜球', '积分', '胜率')
+        standings_columns = ('联赛', '赛季年份', '排名', '队名', '场次', '胜', '平', '负', '进球', '失球', '净胜球', '积分', '胜率')
         self.standings_tree = ttk.Treeview(standings_frame, columns=standings_columns, show='headings', height=15)
         
         # 设置列标题和宽度
+        self.standings_tree.heading('联赛', text='联赛')
+        self.standings_tree.heading('赛季年份', text='赛季年份')
         self.standings_tree.heading('排名', text='排名')
         self.standings_tree.heading('队名', text='队名')
         self.standings_tree.heading('场次', text='场次')
@@ -220,6 +228,8 @@ class DataManagementPage(BasePage):
         self.standings_tree.heading('积分', text='积分')
         self.standings_tree.heading('胜率', text='胜率')
         
+        self.standings_tree.column('联赛', width=120, anchor='center')
+        self.standings_tree.column('赛季年份', width=80, anchor='center')
         self.standings_tree.column('排名', width=50, anchor='center')
         self.standings_tree.column('队名', width=120, anchor='center')
         self.standings_tree.column('场次', width=50, anchor='center')
@@ -548,9 +558,11 @@ class DataManagementPage(BasePage):
                 self.match_tree.delete(item)
             
             with self.get_db_session() as session:
-                # 构建查询
-                query = session.query(Match, Team.home_name_cn.label('home_name'), Team.home_name_cn.label('away_name')).join(
+                # 构建查询，添加 Task 表的联接以获取 league 和 year 字段
+                query = session.query(Match, Team.home_name_cn.label('home_name'), Team.home_name_cn.label('away_name'), Task.league, Task.year).join(
                     Team, (Match.home_team_code == Team.team_code) & (Match.task_id == Team.task_id)
+                ).join(
+                    Task, Match.task_id == Task.id
                 ).filter(Match.task_id == self.current_task_id)
                 
                 # 如果选择了特定轮次
@@ -560,7 +572,7 @@ class DataManagementPage(BasePage):
                 matches = query.order_by(Match.round_num, Match.match_time).all()
                 
                 # 需要获取客队名称
-                for match_data, home_name, _ in matches:
+                for match_data, home_name, _, league, year in matches:
                     # 获取客队名称
                     away_team = session.query(Team).filter(
                         Team.team_code == match_data.away_team_code,
@@ -604,6 +616,9 @@ class DataManagementPage(BasePage):
                     status = "已结束" if match_data.full_score else "未开始"
                     
                     self.match_tree.insert('', 'end', values=(
+                        str(match_data.match_id),  # ID - 比赛ID
+                        league or "",  # 联赛
+                        str(year) if year else "",  # 赛季年份
                         str(match_data.round_num),  # 轮次改为纯数字
                         match_time,
                         home_name or f"队伍{match_data.home_team_code}",
@@ -636,9 +651,11 @@ class DataManagementPage(BasePage):
             standings_category = type_mapping.get(self.standings_type_var.get(), "total")
             
             with self.get_db_session() as session:
-                # 构建查询
-                query = session.query(Standings, Team.home_name_cn).join(
+                # 构建查询，添加 Task 表的联接以获取 league 和 year 字段
+                query = session.query(Standings, Team.home_name_cn, Task.league, Task.year).join(
                     Team, (Standings.team_code == Team.team_code) & (Standings.task_id == Team.task_id)
+                ).join(
+                    Task, Standings.task_id == Task.id
                 ).filter(
                     Standings.task_id == self.current_task_id,
                     Standings.standings_category == standings_category
@@ -662,8 +679,10 @@ class DataManagementPage(BasePage):
                 standings_data = query.order_by(Standings.points.desc(), Standings.goal_diff.desc()).all()
                 
                 # 填充积分榜
-                for rank, (standing, team_name) in enumerate(standings_data, 1):
+                for rank, (standing, team_name, league, year) in enumerate(standings_data, 1):
                     self.standings_tree.insert('', 'end', values=(
+                        league or "",  # 联赛
+                        str(year) if year else "",  # 赛季年份
                         rank,
                         team_name or f"队伍{standing.team_code}",
                         standing.games,
