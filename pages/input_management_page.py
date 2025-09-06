@@ -84,6 +84,15 @@ class InputManagementPage(BasePage):
         )
         generate_year_btn.pack(side=tk.LEFT, padx=(10, 0))
         
+        # 删除年份按钮
+        delete_year_btn = ttk.Button(
+            toolbar_frame,
+            text="删除年份",
+            command=self.delete_year,
+            width=12
+        )
+        delete_year_btn.pack(side=tk.LEFT, padx=(10, 0))
+        
         # 搜索框
         search_frame = ttk.Frame(toolbar_frame)
         search_frame.pack(side=tk.RIGHT)
@@ -873,3 +882,182 @@ class InputManagementPage(BasePage):
             raise
         
         return success_count, skip_count, error_count
+    
+    def delete_year(self):
+        """删除指定年份的所有任务数据"""
+        try:
+            # 显示年份输入对话框
+            year_input = simpledialog.askstring(
+                "删除年份",
+                "请输入要删除的年份 (如: 2024)\n\n"
+                "系统将删除该年份的所有任务数据\n"
+                "包括单年格式 (2024) 和跨年格式 (2024-2025)\n\n"
+                "⚠️ 警告：此操作不可恢复！",
+                initialvalue=""
+            )
+            
+            if not year_input:
+                return  # 用户取消了输入
+            
+            # 验证年份输入
+            is_valid, error_msg = self.validate_year_input(year_input)
+            if not is_valid:
+                self.show_message("输入错误", error_msg, "error")
+                return
+            
+            target_year = int(year_input)
+            
+            # 查询要删除的任务
+            tasks_to_delete = self.find_tasks_by_year(target_year)
+            
+            if not tasks_to_delete:
+                self.show_message("提示", f"未找到年份为 {target_year} 的任务数据", "info")
+                return
+            
+            # 显示删除明细并确认
+            if self.confirm_year_deletion(target_year, tasks_to_delete):
+                # 执行删除操作
+                self.execute_year_deletion(target_year, tasks_to_delete)
+                
+        except Exception as e:
+            self.logger.error(f"删除年份失败: {e}")
+            self.show_message("错误", f"删除失败: {str(e)}", "error")
+    
+    def find_tasks_by_year(self, target_year):
+        """查找指定年份的所有任务"""
+        tasks_to_delete = []
+        
+        try:
+            with self.get_db_session() as session:
+                # 构建年份匹配条件：单年格式和跨年格式
+                single_year = str(target_year)
+                cross_year = f"{target_year}-{target_year + 1}"
+                
+                # 使用SQL查询直接筛选匹配的年份，避免查询所有任务后再过滤
+                matching_tasks = session.query(Task).filter(
+                    (Task.year == single_year) | (Task.year == cross_year)
+                ).all()
+                
+                # 构建删除列表
+                for task in matching_tasks:
+                    tasks_to_delete.append({
+                        'id': task.id,
+                        'league': task.league,
+                        'country': task.country,
+                        'year': task.year,
+                        'type': task.type,
+                        'created_at': task.created_at
+                    })
+                        
+        except Exception as e:
+            self.logger.error(f"查询年份任务失败: {e}")
+            raise
+        
+        return tasks_to_delete
+    
+    def confirm_year_deletion(self, target_year, tasks_to_delete):
+        """显示删除明细并确认操作"""
+        # 构建明细信息
+        detail_lines = []
+        detail_lines.append(f"找到 {len(tasks_to_delete)} 条匹配的任务数据\n")
+        
+        # 按类型分组统计
+        single_year_count = 0
+        cross_year_count = 0
+        type_stats = {}
+        country_stats = {}
+        
+        for task in tasks_to_delete:
+            # 年份格式统计
+            if str(task['year']) == str(target_year):
+                single_year_count += 1
+            elif str(task['year']) == f"{target_year}-{target_year + 1}":
+                cross_year_count += 1
+            
+            # 类型统计
+            task_type = task['type'] or '未设置'
+            type_stats[task_type] = type_stats.get(task_type, 0) + 1
+            
+            # 国家统计
+            country = task['country'] or '未设置'
+            country_stats[country] = country_stats.get(country, 0) + 1
+        
+        # 添加统计信息（紧凑显示）
+        detail_lines.append("📊 删除统计：")
+        detail_lines.append(f"  单年 ({target_year}): {single_year_count} | 跨年 ({target_year}-{target_year + 1}): {cross_year_count}")
+        
+        # 类型统计（限制显示数量）
+        if type_stats:
+            type_items = sorted(type_stats.items())[:3]  # 只显示前3种类型
+            type_summary = " | ".join([f"{t}: {c}" for t, c in type_items])
+            detail_lines.append(f"🏆 主要类型: {type_summary}")
+            if len(type_stats) > 3:
+                detail_lines.append(f"  还有 {len(type_stats) - 3} 种其他类型")
+        
+        # 国家统计（限制显示数量）
+        if country_stats:
+            country_items = sorted(country_stats.items(), key=lambda x: x[1], reverse=True)[:3]  # 按数量排序，显示前3个
+            country_summary = " | ".join([f"{c}: {n}" for c, n in country_items])
+            detail_lines.append(f"🌍 主要国家: {country_summary}")
+            if len(country_stats) > 3:
+                detail_lines.append(f"  还有 {len(country_stats) - 3} 个其他国家")
+        
+        # 只显示前5条具体任务，避免对话框过长
+        detail_lines.append("\n📝 部分任务明细:")
+        for i, task in enumerate(tasks_to_delete[:5]):
+            detail_lines.append(f"  {i+1}. [{task['year']}] {task['country']} - {task['league']}")
+        
+        if len(tasks_to_delete) > 5:
+            detail_lines.append(f"  ... 还有 {len(tasks_to_delete) - 5} 条任务")
+        
+        detail_lines.append("\n⚠️ 警告：此操作不可恢复！")
+        
+        confirm_message = "\n".join(detail_lines)
+        
+        # 显示确认对话框
+        return messagebox.askyesno(
+            f"确认删除年份 {target_year}",
+            confirm_message
+        )
+    
+    def execute_year_deletion(self, target_year, tasks_to_delete):
+        """执行年份删除操作"""
+        if not tasks_to_delete:
+            return
+            
+        try:
+            with self.get_db_session() as session:
+                # 提取所有要删除的任务ID
+                task_ids = [task_info['id'] for task_info in tasks_to_delete]
+                
+                # 使用批量删除SQL语句，避免页面阻塞
+                # 这里使用SQLAlchemy的bulk delete功能
+                deleted_count = session.query(Task).filter(Task.id.in_(task_ids)).delete(synchronize_session=False)
+                
+                # 提交删除操作
+                session.commit()
+                
+                # 显示结果
+                expected_count = len(tasks_to_delete)
+                result_msg = f"年份 {target_year} 批量删除操作完成！\n\n"
+                result_msg += f"✓ 成功删除: {deleted_count} 条任务\n"
+                
+                # 检查是否有未删除的任务
+                if deleted_count < expected_count:
+                    failed_count = expected_count - deleted_count
+                    result_msg += f"⚠ 未删除: {failed_count} 条任务（可能已被删除或不存在）\n"
+                
+                if deleted_count > 0:
+                    self.show_message("删除成功", result_msg, "info")
+                    # 记录日志
+                    self.log_action("批量删除年份", f"成功批量删除年份 {target_year} 的 {deleted_count} 条任务")
+                    # 刷新界面
+                    self.refresh_data()
+                    self.clear_detail()
+                    self.update_stats()
+                else:
+                    self.show_message("删除结果", "未删除任何任务，可能目标数据已不存在", "warning")
+                    
+        except Exception as e:
+            self.logger.error(f"执行批量年份删除失败: {e}")
+            self.show_message("错误", f"批量删除操作失败: {str(e)}", "error")
