@@ -167,22 +167,24 @@ class DataManagementPage(BasePage):
         match_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 10))
         
         # 创建 Treeview
-        match_columns = ('轮次', '时间', '主队', '比分', '客队', '状态')
+        match_columns = ('轮次', '时间', '主队', '主分', '客分', '客队', '状态')
         self.match_tree = ttk.Treeview(match_frame, columns=match_columns, show='headings', height=15)
         
         # 设置列标题和宽度
         self.match_tree.heading('轮次', text='轮次')
         self.match_tree.heading('时间', text='时间')
         self.match_tree.heading('主队', text='主队')
-        self.match_tree.heading('比分', text='比分')
+        self.match_tree.heading('主分', text='主分')
+        self.match_tree.heading('客分', text='客分')
         self.match_tree.heading('客队', text='客队')
         self.match_tree.heading('状态', text='状态')
         
-        self.match_tree.column('轮次', width=60, anchor='center')
+        self.match_tree.column('轮次', width=50, anchor='center')
         self.match_tree.column('时间', width=120, anchor='center')
-        self.match_tree.column('主队', width=120, anchor='center')
-        self.match_tree.column('比分', width=80, anchor='center')
-        self.match_tree.column('客队', width=120, anchor='center')
+        self.match_tree.column('主队', width=100, anchor='center')
+        self.match_tree.column('主分', width=40, anchor='center')
+        self.match_tree.column('客分', width=40, anchor='center')
+        self.match_tree.column('客队', width=100, anchor='center')
         self.match_tree.column('状态', width=60, anchor='center')
         
         # 滚动条
@@ -566,11 +568,23 @@ class DataManagementPage(BasePage):
                     ).first()
                     away_name = away_team.home_name_cn if away_team else f"队伍{match_data.away_team_code}"
                     
-                    # 格式化比分
+                    # 格式化比分 - 拆分为主分和客分
                     if match_data.full_score:
-                        score = match_data.full_score
+                        try:
+                            # 解析比分格式 "5-2"
+                            if '-' in match_data.full_score:
+                                home_score, away_score = match_data.full_score.split('-', 1)
+                                home_score = home_score.strip()
+                                away_score = away_score.strip()
+                            else:
+                                home_score = match_data.full_score
+                                away_score = match_data.full_score
+                        except:
+                            home_score = match_data.full_score
+                            away_score = match_data.full_score
                     else:
-                        score = "vs"
+                        home_score = ""
+                        away_score = ""
                     
                     # 格式化时间（match_time是字符串格式）
                     if match_data.match_time:
@@ -590,10 +604,11 @@ class DataManagementPage(BasePage):
                     status = "已结束" if match_data.full_score else "未开始"
                     
                     self.match_tree.insert('', 'end', values=(
-                        f"第{match_data.round_num}轮",
+                        str(match_data.round_num),  # 轮次改为纯数字
                         match_time,
                         home_name or f"队伍{match_data.home_team_code}",
-                        score,
+                        home_score,  # 主分
+                        away_score,  # 客分
                         away_name,
                         status
                     ))
