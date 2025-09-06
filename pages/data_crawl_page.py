@@ -13,7 +13,7 @@ from tkinter import scrolledtext, ttk
 
 import requests
 
-from models import JsDataRaw, Match, Standings, Task, Team
+from models import JsDataRaw, Match, MatchBasic, Standings, Task, Team
 from .base_page import BasePage
 
 
@@ -164,6 +164,15 @@ class DataCrawlPage(BasePage):
         self.delay_var = tk.DoubleVar(value=0)
         delay_spin = ttk.Spinbox(settings_frame, from_=0.1, to=10.0, increment=0.1, textvariable=self.delay_var, width=10)
         delay_spin.grid(row=0, column=3, sticky='w')
+
+        # 第二行：基本数据爬取专用延迟设置
+        ttk.Label(settings_frame, text="基本数据延迟(秒):").grid(row=1, column=0, sticky='e', padx=(0, 5), pady=(5, 0))
+        self.basic_info_delay_var = tk.DoubleVar(value=0.5)
+        basic_delay_spin = ttk.Spinbox(settings_frame, from_=0, to=10.0, increment=0.1, textvariable=self.basic_info_delay_var, width=10)
+        basic_delay_spin.grid(row=1, column=1, sticky='w', padx=(0, 20), pady=(5, 0))
+
+        # 添加说明标签
+        ttk.Label(settings_frame, text="(基本数据爬取专用延迟)", font=('Arial', 8), foreground='gray').grid(row=1, column=2, columnspan=2, sticky='w', padx=(0, 5), pady=(5, 0))
 
         # 控制按钮
         button_frame = ttk.Frame(control_frame)
@@ -655,6 +664,9 @@ class DataCrawlPage(BasePage):
         # 保存比赛数据
         self.save_match_data(match_data, task, js_data_record.id, session)
 
+        # 爬取比赛基本信息数据
+        self.crawl_match_basic_info(match_data, session)
+
         # 计算三种积分榜
         calculated_standings = self.calculate_three_type_standings(match_data, team_data)
 
@@ -685,6 +697,9 @@ class DataCrawlPage(BasePage):
 
         # 保存比赛数据
         self.save_match_data(match_data, task, js_data_record.id, session)
+
+        # 爬取比赛基本信息数据
+        self.crawl_match_basic_info(match_data, session)
 
         # 计算三种积分榜
         calculated_standings = self.calculate_three_type_standings(match_data, team_data)
@@ -724,6 +739,10 @@ class DataCrawlPage(BasePage):
         # 保存比赛数据（两个阶段）
         self.save_match_data(match_data1, task, js_data1.id, session)
         self.save_match_data(match_data2, task, js_data2.id, session)
+
+        # 爬取比赛基本信息数据（两个阶段）
+        self.crawl_match_basic_info(match_data1, session)
+        self.crawl_match_basic_info(match_data2, session)
 
         # 分别计算两个阶段的三种积分榜
         calculated_standings1 = self.calculate_three_type_standings(match_data1, team_data1)
@@ -1396,6 +1415,226 @@ class DataCrawlPage(BasePage):
 
         self.logger.info(f"合并比赛数据完成：第一阶段{len(first_match_data)}轮，第二阶段{len(second_match_data)}轮，合并后{len(merged_data)}轮")
         return merged_data
+
+    def crawl_match_basic_info(self, match_data, session):
+        """爬取比赛基本信息数据"""
+        if not match_data:
+            return
+
+        saved_count = 0
+        for round_num, matches in match_data.items():
+            for match_info in matches:
+                match_id = match_info.get('match_id')
+                if not match_id:
+                    continue
+
+                # 检查是否已存在该基本信息记录
+                existing_basic = session.query(MatchBasic).filter(
+                    MatchBasic.match_id == match_id
+                ).first()
+
+                if existing_basic:
+                    self.logger.info(f"比赛 {match_id} 的基本信息已存在，跳过")
+                    continue
+
+                # 爬取基本信息
+                basic_info = self.fetch_match_basic_info(match_id)
+                if basic_info:
+                    match_basic_record = MatchBasic(
+                        match_id=match_id,
+                        game_name=basic_info.get('gameName', ''),
+                        game_date=basic_info.get('gameDate', ''),
+                        game_time=basic_info.get('gameTime', ''),
+                        home_name=basic_info.get('homeName', ''),
+                        away_name=basic_info.get('awayName', ''),
+                        home_code=basic_info.get('homeCode', ''),
+                        away_code=basic_info.get('awayCode', ''),
+                        home_score=basic_info.get('homeScore', '0'),
+                        away_score=basic_info.get('awayScore', '0')
+                    )
+                    session.add(match_basic_record)
+                    saved_count += 1
+                    self.add_log(f"已保存比赛 {match_id} 的基本信息")
+                else:
+                    self.add_log(f"爬取比赛 {match_id} 基本信息失败", "ERROR")
+
+                # 添加基本数据专用延迟，避免请求过快
+                basic_delay = self.basic_info_delay_var.get()
+                if basic_delay > 0:
+                    time.sleep(basic_delay)
+
+        self.logger.info(f"保存了 {saved_count} 条比赛基本信息")
+
+    def fetch_match_basic_info(self, match_id):
+        """爬取单个比赛的基本信息"""
+        try:
+            # 移除可能的cn后缀
+            formatted_match_id = str(match_id)
+            if formatted_match_id.endswith('cn'):
+                formatted_match_id = formatted_match_id[:-2]
+
+            # 构建分析页面URL
+            if formatted_match_id.isdigit():
+                url = f"https://zq.titan007.com/analysis/{formatted_match_id}cn.htm"
+            else:
+                url = f"https://zq.titan007.com/analysis/{formatted_match_id}.htm"
+
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+            }
+
+            # 获取HTML页面
+            response = requests.get(url, headers=headers, timeout=15)
+            response.raise_for_status()
+            response.encoding = 'utf-8'
+            html_content = response.text
+
+            # 解析基本信息
+            basic_info = self.parse_match_basic_info(html_content, formatted_match_id)
+            if not basic_info:
+                return None
+
+            # 获取比分信息
+            score_info = self.fetch_match_score_info(formatted_match_id, headers)
+            if score_info:
+                basic_info.update(score_info)
+
+            return basic_info
+
+        except Exception as e:
+            self.logger.error(f"爬取比赛 {match_id} 基本信息失败: {e}")
+            return None
+
+    def parse_match_basic_info(self, html_content, match_id):
+        """解析HTML页面中的基本信息"""
+        try:
+            # 提取比赛时间
+            date_time_match = re.search(r"var strTime \= \'(.*?)\'\;", html_content)
+            if not date_time_match:
+                self.logger.error(f"比赛 {match_id} 未找到比赛时间数据")
+                return None
+
+            date_time = date_time_match.group(1)
+            game_date = date_time.split()[0]
+            game_time = date_time.split()[1] if len(date_time.split()) > 1 else ""
+
+            # 提取主队名 - 使用多种方式尝试
+            home_name = None
+            home_patterns = [
+                r'<div[^>]*class=\"home\"[^>]*>.*?<a[^>]*>([^<]+)</a>',
+                r'class=\"home\"[^>]*>.*?<a[^>]*>([^<]+)</a>',
+                r'<td[^>]*class=\"[^\"]*home[^\"]*\"[^>]*>.*?<a[^>]*>([^<]+)</a>'
+            ]
+            for pattern in home_patterns:
+                match = re.search(pattern, html_content, re.DOTALL)
+                if match:
+                    home_name = match.group(1).strip()
+                    break
+
+            if not home_name:
+                self.logger.error(f"比赛 {match_id} 未找到主队名")
+                return None
+
+            # 提取客队名
+            away_name = None
+            away_patterns = [
+                r'<div[^>]*class=\"guest\"[^>]*>.*?<a[^>]*>([^<]+)</a>',
+                r'class=\"guest\"[^>]*>.*?<a[^>]*>([^<]+)</a>',
+                r'<td[^>]*class=\"[^\"]*guest[^\"]*\"[^>]*>.*?<a[^>]*>([^<]+)</a>'
+            ]
+            for pattern in away_patterns:
+                match = re.search(pattern, html_content, re.DOTALL)
+                if match:
+                    away_name = match.group(1).strip()
+                    break
+
+            if not away_name:
+                self.logger.error(f"比赛 {match_id} 未找到客队名")
+                return None
+
+            # 提取联赛名
+            game_name = None
+            league_patterns = [
+                r"class\=\'LName\'\>([^<]+)\<\/a\>",
+                r'class=\"LName\"[^>]*>([^<]+)</a>',
+                r'<a[^>]*class=\"LName\"[^>]*>([^<]+)</a>'
+            ]
+            for pattern in league_patterns:
+                match = re.search(pattern, html_content)
+                if match:
+                    game_name = match.group(1).split()[0].strip()
+                    break
+
+            if not game_name:
+                self.logger.warning(f"比赛 {match_id} 未找到联赛名，使用默认值")
+                game_name = "未知联赛"
+
+            # 提取主队代码
+            home_code_match = re.search(r"var h2h_home \= (.*?)\;", html_content)
+            home_code = home_code_match.group(1).strip() if home_code_match else ""
+
+            # 提取客队代码
+            away_code_match = re.search(r"var h2h_away \= (.*?)\;", html_content)
+            away_code = away_code_match.group(1).strip() if away_code_match else ""
+
+            return {
+                'gameName': game_name,
+                'gameDate': game_date,
+                'gameTime': game_time,
+                'homeName': self.clean_team_name(home_name),
+                'awayName': self.clean_team_name(away_name),
+                'homeCode': home_code,
+                'awayCode': away_code,
+                'homeScore': '0',  # 默认比分，后续通过API获取
+                'awayScore': '0'
+            }
+
+        except Exception as e:
+            self.logger.error(f"解析比赛 {match_id} 基本信息失败: {e}")
+            return None
+
+    def fetch_match_score_info(self, match_id, headers):
+        """获取比赛比分信息"""
+        try:
+            url = "https://zq.titan007.com/default/getScheduleInfo"
+            params = {
+                "sid": match_id,
+                "t": int(time.time() * 1000)
+            }
+
+            response = requests.get(url, headers=headers, params=params, timeout=10)
+            response.raise_for_status()
+
+            if response.text and "=" in response.text:
+                try:
+                    score_data = response.text.split("=")[1].split(";")[0].split(",")
+                    if len(score_data) >= 3:
+                        return {
+                            'homeScore': score_data[1],
+                            'awayScore': score_data[2]
+                        }
+                except Exception as e:
+                    self.logger.warning(f"解析比赛 {match_id} 比分数据失败: {e}")
+
+            return {'homeScore': '0', 'awayScore': '0'}
+
+        except Exception as e:
+            self.logger.warning(f"获取比赛 {match_id} 比分信息失败: {e}")
+            return {'homeScore': '0', 'awayScore': '0'}
+
+    def clean_team_name(self, team_name):
+        """清洗队伍名称"""
+        if not team_name:
+            return ""
+        
+        # 简单的清洗逻辑
+        team_name = team_name.strip()
+        # 移除常见的标记符号
+        team_name = team_name.replace('[中]', '').replace('(中)', '')
+        team_name = team_name.replace('[预]', '').replace('(预)', '')
+        team_name = team_name.replace('[退]', '').replace('(退)', '')
+        
+        return team_name.strip()
 
     def add_log(self, message, level="INFO"):
         """添加日志信息"""

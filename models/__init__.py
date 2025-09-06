@@ -9,6 +9,7 @@ from .team import Team
 from .js_data_raw import JsDataRaw
 from .standings import Standings
 from .match import Match
+from .match_basic import MatchBasic
 from .database import DatabaseManager
 
-__all__ = ['Base', 'Task', 'Team', 'JsDataRaw', 'Standings', 'Match', 'DatabaseManager']
+__all__ = ['Base', 'Task', 'Team', 'JsDataRaw', 'Standings', 'Match', 'MatchBasic', 'DatabaseManager']
