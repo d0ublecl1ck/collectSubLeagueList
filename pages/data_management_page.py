@@ -325,21 +325,21 @@ class DataManagementPage(BasePage):
         stats_frame = ttk.LabelFrame(self.frame, text="统计信息", padding=15)
         stats_frame.pack(fill=tk.X)
         
-        # 统计信息网格
+        # 统计信息横向布局 - 全部放在一行
         self.total_teams_label = ttk.Label(stats_frame, text="总队伍数: 0")
         self.total_teams_label.grid(row=0, column=0, sticky='w', padx=(0, 20))
         
-        self.cn_names_label = ttk.Label(stats_frame, text="有中文名: 0")
+        self.cn_names_label = ttk.Label(stats_frame, text="比赛场次: 0")
         self.cn_names_label.grid(row=0, column=1, sticky='w', padx=(0, 20))
         
-        self.en_names_label = ttk.Label(stats_frame, text="有英文名: 0")
+        self.en_names_label = ttk.Label(stats_frame, text="已完成: 0")
         self.en_names_label.grid(row=0, column=2, sticky='w', padx=(0, 20))
         
-        self.groups_label = ttk.Label(stats_frame, text="分组数: 0")
-        self.groups_label.grid(row=1, column=0, sticky='w', padx=(0, 20), pady=(5, 0))
+        self.groups_label = ttk.Label(stats_frame, text="积分榜类型: 未选择")
+        self.groups_label.grid(row=0, column=3, sticky='w', padx=(0, 20))
         
         self.last_update_label = ttk.Label(stats_frame, text="最后更新: 未知")
-        self.last_update_label.grid(row=1, column=1, sticky='w', padx=(0, 20), pady=(5, 0))
+        self.last_update_label.grid(row=0, column=4, sticky='w', padx=(0, 20))
         
         # 初始化链接按钮容器
         self.link_buttons = []
@@ -367,7 +367,7 @@ class DataManagementPage(BasePage):
         # 获取统计面板的父容器（从已完成标签获取）
         stats_frame = self.en_names_label.master
         
-        # 主链接按钮 - 放在第0行第3列
+        # 主链接按钮 - 放在第0行第5列
         if main_link and main_link.strip():
             main_link_btn = ttk.Button(
                 stats_frame,
@@ -375,10 +375,10 @@ class DataManagementPage(BasePage):
                 command=lambda url=main_link: self.open_link(url),
                 width=8
             )
-            main_link_btn.grid(row=0, column=3, sticky='w', padx=(20, 5))
+            main_link_btn.grid(row=0, column=5, sticky='w', padx=(20, 5))
             self.link_buttons.append(main_link_btn)
         
-        # 备用链接按钮 - 放在第0行第4列
+        # 备用链接按钮 - 放在第0行第6列
         if second_link and second_link.strip():
             second_link_btn = ttk.Button(
                 stats_frame,
@@ -386,8 +386,8 @@ class DataManagementPage(BasePage):
                 command=lambda url=second_link: self.open_link(url),
                 width=8
             )
-            # 如果没有主链接，备用链接放在第3列；如果有主链接，放在第4列
-            col_position = 3 if not (main_link and main_link.strip()) else 4
+            # 如果没有主链接，备用链接放在第5列；如果有主链接，放在第6列
+            col_position = 5 if not (main_link and main_link.strip()) else 6
             second_link_btn.grid(row=0, column=col_position, sticky='w', padx=(5, 0))
             self.link_buttons.append(second_link_btn)
     
