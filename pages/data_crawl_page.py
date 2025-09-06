@@ -73,6 +73,10 @@ class DataCrawlPage(BasePage):
         invert_btn = ttk.Button(toolbar_frame, text="反选", command=self.invert_selection)
         invert_btn.pack(side=tk.LEFT, padx=(0, 10))
         
+        # 选中指定年份按钮
+        select_year_btn = ttk.Button(toolbar_frame, text="选中指定年份", command=self.select_by_year)
+        select_year_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
         # 搜索框
         search_frame = ttk.Frame(toolbar_frame)
         search_frame.pack(side=tk.RIGHT)
@@ -126,6 +130,15 @@ class DataCrawlPage(BasePage):
             foreground='blue'
         )
         self.task_stats_label.pack(side=tk.LEFT)
+        
+        # 添加增量选中规则说明
+        help_label = ttk.Label(
+            stats_frame,
+            text="注：选中指定年份为增量选中（保持已选项目，新增匹配项目）",
+            font=('Arial', 8),
+            foreground='orange'
+        )
+        help_label.pack(side=tk.RIGHT)
         
         # 初始化完整项目列表（用于搜索状态管理）
         self.all_task_items = []
@@ -331,6 +344,78 @@ class DataCrawlPage(BasePage):
         except Exception as e:
             self.logger.error(f"反选操作失败: {e}")
             self.add_log(f"反选操作失败: {e}", "ERROR")
+
+    def select_by_year(self):
+        """选中指定年份的任务（增量选中）"""
+        from tkinter import simpledialog
+        
+        try:
+            # 弹出年份输入对话框
+            year_input = simpledialog.askstring(
+                "选中指定年份", 
+                "请输入年份（如：2024）：",
+                parent=self.frame
+            )
+            
+            if not year_input:
+                return
+                
+            year_input = year_input.strip()
+            if not year_input:
+                return
+                
+            # 获取当前已选中的项目（保持现有选择）
+            current_selection = set(self.task_tree.selection())
+            
+            # 从数据库查询匹配年份的任务
+            matching_task_ids = self.query_tasks_by_year(year_input)
+            
+            if not matching_task_ids:
+                self.add_log(f"未找到年份包含 '{year_input}' 的任务", "INFO")
+                return
+            
+            # 在当前显示的项目中查找匹配的任务并选中
+            new_selections = []
+            for item in self.task_tree.get_children():
+                values = self.task_tree.item(item)['values']
+                task_id = values[0]  # ID在第一列
+                if task_id in matching_task_ids:
+                    new_selections.append(item)
+            
+            # 增量选中：保持现有选择 + 新增匹配项目
+            final_selection = current_selection.union(set(new_selections))
+            self.task_tree.selection_set(list(final_selection))
+            
+            # 更新统计信息
+            self.update_stats()
+            
+            # 记录日志
+            original_count = len(current_selection)
+            new_count = len(new_selections)
+            final_count = len(final_selection)
+            self.add_log(f"按年份选中完成: 原选中 {original_count} 个，新增 {new_count} 个，总计 {final_count} 个", "INFO")
+            
+        except Exception as e:
+            self.logger.error(f"按年份选中操作失败: {e}")
+            self.add_log(f"按年份选中操作失败: {e}", "ERROR")
+    
+    def query_tasks_by_year(self, year_input):
+        """从数据库查询匹配年份的任务ID列表"""
+        try:
+            with self.get_db_session() as session:
+                # 查询条件：year字段包含输入的年份
+                # 支持精确匹配（如：2024）和范围匹配（如：2024-2025）
+                tasks = session.query(Task).filter(
+                    Task.year.like(f'%{year_input}%')
+                ).all()
+                
+                task_ids = [task.id for task in tasks]
+                self.logger.info(f"查询年份 '{year_input}' 匹配到 {len(task_ids)} 个任务")
+                return task_ids
+                
+        except Exception as e:
+            self.logger.error(f"查询年份任务失败: {e}")
+            return []
 
     def on_search_change(self, *args):
         """搜索框内容变化事件"""
