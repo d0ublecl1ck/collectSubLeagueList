@@ -28,8 +28,6 @@ class Task(Base):
     # 数据源相关
     link = Column(Text, nullable=True, comment='主要数据源链接')
     link_second = Column(Text, nullable=True, comment='备用数据源链接')
-    js_data_raw = Column(Text, nullable=True, comment='原始JS数据内容')
-    standings = Column(Text, nullable=True, comment='积分榜/排名数据')
     
     # 时间戳字段
     last_crawl_time = Column(DateTime, nullable=True, comment='最后一次爬取时间')

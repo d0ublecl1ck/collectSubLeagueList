@@ -171,8 +171,17 @@ class DataCrawlPage(BasePage):
         basic_delay_spin = ttk.Spinbox(settings_frame, from_=0, to=10.0, increment=0.1, textvariable=self.basic_info_delay_var, width=10)
         basic_delay_spin.grid(row=1, column=1, sticky='w', padx=(0, 20), pady=(5, 0))
 
+        # 同时爬取基本信息复选框
+        self.crawl_basic_info_var = tk.BooleanVar(value=True)  # 默认启用
+        self.crawl_basic_info_checkbox = ttk.Checkbutton(
+            settings_frame,
+            text="同时爬取基本信息",
+            variable=self.crawl_basic_info_var
+        )
+        self.crawl_basic_info_checkbox.grid(row=1, column=2, sticky='w', padx=(20, 0), pady=(5, 0))
+
         # 添加说明标签
-        ttk.Label(settings_frame, text="(基本数据爬取专用延迟)", font=('Arial', 8), foreground='gray').grid(row=1, column=2, columnspan=2, sticky='w', padx=(0, 5), pady=(5, 0))
+        ttk.Label(settings_frame, text="(基本数据爬取专用延迟)", font=('Arial', 8), foreground='gray').grid(row=1, column=3, sticky='w', padx=(5, 0), pady=(5, 0))
 
         # 控制按钮
         button_frame = ttk.Frame(control_frame)
@@ -1086,6 +1095,11 @@ class DataCrawlPage(BasePage):
                 existing_team.home_name_en = team_info.get("home_name_en")
                 existing_team.image_path = team_info.get("image_path")
                 existing_team.group_id = team_info.get("group_id")
+                # round_num、sclass_id 统一转为字符串以匹配模型定义（SQLite 宽类型会导致混用）
+                rnd = team_info.get("round_num")
+                existing_team.round_num = str(rnd) if rnd is not None else None
+                scls = team_info.get("sclass_id")
+                existing_team.sclass_id = str(scls) if scls is not None else None
                 existing_team.unknown1 = team_info.get("unknown1")
                 updated_count += 1
             else:
@@ -1099,6 +1113,8 @@ class DataCrawlPage(BasePage):
                     home_name_en=team_info.get("home_name_en"),
                     image_path=team_info.get("image_path"),
                     group_id=team_info.get("group_id"),
+                    round_num=(str(team_info.get("round_num")) if team_info.get("round_num") is not None else None),
+                    sclass_id=(str(team_info.get("sclass_id")) if team_info.get("sclass_id") is not None else None),
                     unknown1=team_info.get("unknown1")
                 )
                 session.add(team)
@@ -1418,6 +1434,11 @@ class DataCrawlPage(BasePage):
 
     def crawl_match_basic_info(self, match_data, session):
         """爬取比赛基本信息数据"""
+        # 检查是否启用基本信息爬取
+        if not self.crawl_basic_info_var.get():
+            self.logger.info("基本信息爬取已禁用，跳过")
+            return
+            
         if not match_data:
             return
 

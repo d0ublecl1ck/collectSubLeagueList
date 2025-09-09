@@ -3,13 +3,15 @@
 """
 
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, simpledialog
 from datetime import datetime
 from sqlalchemy import func
 import webbrowser
+import threading
 
 from .base_page import BasePage
 from models import Task, Team, Match, Standings
+from .utils.format_output import format_output, validate_year_format
 
 
 class DataManagementPage(BasePage):
@@ -63,9 +65,38 @@ class DataManagementPage(BasePage):
         search_entry = ttk.Entry(search_controls, textvariable=self.search_var, width=30)
         search_entry.pack(side=tk.LEFT, padx=(0, 10))
         
+        # 右侧按钮区域
+        right_buttons = ttk.Frame(toolbar_frame)
+        right_buttons.pack(side=tk.RIGHT)
+        
+        # 导出数据按钮
+        export_btn = ttk.Button(right_buttons, text="导出数据", command=self.export_data_by_year, width=10)
+        export_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
         # 刷新按钮
-        refresh_btn = ttk.Button(toolbar_frame, text="刷新任务", command=self.refresh_task_data)
-        refresh_btn.pack(side=tk.RIGHT)
+        refresh_btn = ttk.Button(right_buttons, text="刷新任务", command=self.refresh_task_data, width=10)
+        refresh_btn.pack(side=tk.LEFT)
+        
+        # 进度条和状态显示（放在工具栏下方）
+        status_frame = ttk.Frame(search_frame)
+        status_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        # 进度条（默认隐藏）
+        self.export_progress = ttk.Progressbar(
+            status_frame,
+            mode='indeterminate',
+            length=200
+        )
+        self.export_progress.pack(side=tk.LEFT, padx=(0, 10))
+        self.export_progress.pack_forget()  # 默认隐藏
+        
+        # 状态标签
+        self.export_status_label = ttk.Label(
+            status_frame,
+            text="",
+            foreground='green'
+        )
+        self.export_status_label.pack(side=tk.LEFT)
         
         # 任务列表
         list_container = ttk.Frame(search_frame)
@@ -343,6 +374,7 @@ class DataManagementPage(BasePage):
         
         # 初始化链接按钮容器
         self.link_buttons = []
+    
     
     def open_link(self, url):
         """打开链接到浏览器"""
@@ -768,3 +800,121 @@ class DataManagementPage(BasePage):
                 
         except Exception as e:
             self.logger.error(f"更新统计信息失败: {e}")
+    
+    # ========== 数据导出功能 ==========
+    
+    def export_data_by_year(self):
+        """按年份导出数据"""
+        try:
+            # 获取年份输入
+            year = self.get_year_input()
+            if not year:
+                return  # 用户取消
+            
+            # 验证年份格式
+            if not validate_year_format(year):
+                self.show_message("错误", "年份格式不正确！请输入4位数字年份（如：2022）", "error")
+                return
+            
+            # 检查是否有该年份的数据
+            with self.get_db_session() as session:
+                # 同步导出逻辑：既包含当年赛季，也包含跨赛季（如 2024-2025）
+                year2 = f"{year}-{int(year) + 1}"
+                task_count = (
+                    session.query(Task)
+                    .filter(Task.year.in_([year, year2]))
+                    .count()
+                )
+                if task_count == 0:
+                    self.show_message("提示", f"未找到{year}年的任务数据", "warning")
+                    return
+            
+            # 选择保存位置
+            file_path = filedialog.asksaveasfilename(
+                title="保存导出文件",
+                defaultextension=".csv",
+                filetypes=[
+                    ("CSV文件", "*.csv"),
+                    ("所有文件", "*.*")
+                ],
+                initialfile=f"football_data_{year}.csv"
+            )
+            
+            if not file_path:
+                return  # 用户取消保存
+            
+            # 在后台线程中执行导出
+            self.start_export_process(year, file_path)
+            
+        except Exception as e:
+            self.logger.error(f"导出数据失败: {e}")
+            self.show_message("错误", f"导出失败: {str(e)}", "error")
+    
+    def get_year_input(self) -> str:
+        """获取年份输入"""
+        # 获取当前年份作为默认值
+        current_year = datetime.now().year
+        
+        year = simpledialog.askstring(
+            "年份选择",
+            "请输入要导出的年份（格式：2024）:\n\n导出内容包括：\n• 总积分榜、主场积分榜、客场积分榜\n• 2025/2024/2023年度升降级信息",
+            initialvalue=str(current_year)
+        )
+        return year.strip() if year else None
+    
+    def start_export_process(self, year: str, file_path: str):
+        """开始导出过程（显示进度并在后台执行）"""
+        # 显示进度条和状态
+        self.export_progress.pack(side=tk.LEFT, padx=(10, 0))
+        self.export_progress.start()
+        self.export_status_label.config(text="正在导出...", foreground='blue')
+        
+        # 在后台线程中执行导出
+        export_thread = threading.Thread(
+            target=self._export_worker,
+            args=(year, file_path),
+            daemon=True
+        )
+        export_thread.start()
+    
+    def _export_worker(self, year: str, file_path: str):
+        """后台导出工作线程"""
+        try:
+            # 执行数据格式化（由工具函数内部管理数据库会话）
+            csv_content = format_output(year)
+            
+            if not csv_content:
+                # 在主线程中更新UI
+                self.frame.after(0, lambda: self._export_completed(
+                    False, f"未找到{year}年的数据或数据为空"
+                ))
+                return
+            
+            # 保存文件
+            with open(file_path, 'w', encoding='utf-8-sig', newline='') as f:
+                f.write(csv_content)
+            
+            # 在主线程中更新UI - 成功
+            self.frame.after(0, lambda: self._export_completed(True, file_path))
+            
+        except Exception as e:
+            self.logger.error(f"导出工作线程失败: {e}")
+            # 在主线程中更新UI - 失败
+            self.frame.after(0, lambda: self._export_completed(False, str(e)))
+    
+    def _export_completed(self, success: bool, message: str):
+        """导出完成后的UI更新（在主线程中调用）"""
+        # 停止并隐藏进度条
+        self.export_progress.stop()
+        self.export_progress.pack_forget()
+        
+        if success:
+            self.export_status_label.config(text="导出成功！", foreground='green')
+            self.show_message("成功", f"数据已成功导出到：\n{message}", "info")
+            # 3秒后清除状态
+            self.frame.after(3000, lambda: self.export_status_label.config(text=""))
+        else:
+            self.export_status_label.config(text="导出失败", foreground='red')
+            self.show_message("错误", f"导出失败：{message}", "error")
+            # 3秒后清除状态
+            self.frame.after(3000, lambda: self.export_status_label.config(text=""))
