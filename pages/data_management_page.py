@@ -190,14 +190,15 @@ class DataManagementPage(BasePage):
         match_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 10))
         
         # 创建 Treeview
-        match_columns = ('ID', '联赛', '赛季年份', '轮次', '时间', '主队', '主分', '客分', '客队', '状态')
+        match_columns = ('ID', '联赛', '赛季年份', '轮次', '大致日期', '时间', '主队', '主分', '客分', '客队', '状态')
         self.match_tree = ttk.Treeview(match_frame, columns=match_columns, show='headings', height=15)
-        
+
         # 设置列标题和宽度
         self.match_tree.heading('ID', text='ID')
         self.match_tree.heading('联赛', text='联赛')
         self.match_tree.heading('赛季年份', text='赛季年份')
         self.match_tree.heading('轮次', text='轮次')
+        self.match_tree.heading('大致日期', text='大致日期')
         self.match_tree.heading('时间', text='时间')
         self.match_tree.heading('主队', text='主队')
         self.match_tree.heading('主分', text='主分')
@@ -209,7 +210,8 @@ class DataManagementPage(BasePage):
         self.match_tree.column('联赛', width=120, anchor='center')
         self.match_tree.column('赛季年份', width=80, anchor='center')
         self.match_tree.column('轮次', width=50, anchor='center')
-        self.match_tree.column('时间', width=120, anchor='center')
+        self.match_tree.column('大致日期', width=80, anchor='center')
+        self.match_tree.column('时间', width=100, anchor='center')
         self.match_tree.column('主队', width=100, anchor='center')
         self.match_tree.column('主分', width=40, anchor='center')
         self.match_tree.column('客分', width=40, anchor='center')
@@ -569,11 +571,54 @@ class DataManagementPage(BasePage):
         """加载赛程和积分榜数据"""
         if not self.current_task_id:
             return
-        
+
         self.load_match_data()
         self.load_standings_data()
         self.update_statistics_new()
-    
+
+    def calculate_round_dates(self, matches):
+        """
+        计算每个轮次的"大致日期"（出现次数最多的日期）
+
+        Args:
+            matches: 查询到的所有Match对象列表
+
+        Returns:
+            dict: {轮次号: 大致日期} 的映射
+        """
+        round_date_count = {}
+        round_approximate_date = {}
+
+        for match_data, home_name, _, league, year in matches:
+            round_num = match_data.round_num
+            if not round_num:
+                continue
+
+            # 提取日期部分（从 "08-07 22:00" 提取 "08-07"）
+            if match_data.match_time and isinstance(match_data.match_time, str):
+                try:
+                    # 处理 "08-07 22:00" 格式
+                    date_part = match_data.match_time.split()[0]
+                except:
+                    date_part = None
+            else:
+                date_part = None
+
+            if date_part:
+                # 统计每个轮次的日期出现次数
+                if round_num not in round_date_count:
+                    round_date_count[round_num] = {}
+                round_date_count[round_num][date_part] = round_date_count[round_num].get(date_part, 0) + 1
+
+        # 找出每个轮次出现次数最多的日期
+        for round_num, date_counts in round_date_count.items():
+            if date_counts:
+                # 按出现次数排序，取最多
+                most_common_date = max(date_counts.items(), key=lambda x: x[1])[0]
+                round_approximate_date[round_num] = most_common_date
+
+        return round_approximate_date
+
     def load_match_data(self):
         """加载赛程数据"""
         try:
@@ -594,7 +639,10 @@ class DataManagementPage(BasePage):
                     query = query.filter(Match.round_num == self.current_round)
                 
                 matches = query.order_by(Match.round_num, Match.match_time).all()
-                
+
+                # 计算每个轮次的"大致日期"
+                round_approximate_dates = self.calculate_round_dates(matches)
+
                 # 需要获取客队名称
                 for match_data, home_name, _, league, year in matches:
                     # 获取客队名称
@@ -638,13 +686,17 @@ class DataManagementPage(BasePage):
                     
                     # 状态判断
                     status = "已结束" if match_data.full_score else "未开始"
-                    
+
+                    # 获取该轮次的"大致日期"
+                    approximate_date = round_approximate_dates.get(match_data.round_num, "")
+
                     self.match_tree.insert('', 'end', values=(
                         str(match_data.match_id),  # ID - 比赛ID
                         league or "",  # 联赛
                         str(year) if year else "",  # 赛季年份
                         str(match_data.round_num),  # 轮次改为纯数字
-                        match_time,
+                        approximate_date,  # 大致日期
+                        match_time,  # 时间
                         home_name or f"队伍{match_data.home_team_code}",
                         home_score,  # 主分
                         away_score,  # 客分
