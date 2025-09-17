@@ -8,6 +8,7 @@ from typing import Optional
 from loguru import logger
 
 from models import DatabaseManager
+from utils import get_database_url
 
 
 class BasePage:
@@ -22,7 +23,7 @@ class BasePage:
             db_manager: 数据库管理器实例
         """
         self.parent = parent
-        self.db_manager = db_manager or DatabaseManager('sqlite:///data.db')
+        self.db_manager = db_manager or DatabaseManager(get_database_url())
         
         # 创建主框架
         self.frame = ttk.Frame(parent)

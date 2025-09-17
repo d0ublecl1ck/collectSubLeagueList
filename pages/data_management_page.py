@@ -19,14 +19,6 @@ class DataManagementPage(BasePage):
     
     def setup_ui(self):
         """设置数据管理页面的用户界面"""
-        # 页面标题
-        title_label = ttk.Label(
-            self.frame, 
-            text="数据管理", 
-            font=('Arial', 16, 'bold')
-        )
-        title_label.pack(pady=(0, 20))
-        
         # 任务搜索区域
         self.create_task_search_area()
         

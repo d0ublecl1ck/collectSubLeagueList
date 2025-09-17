@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, Tuple, Optional
 
 from models import Match, Standings, Task, Team, DatabaseManager
+from utils import get_database_url
 
 
 def format_output(year: str) -> str:
@@ -18,12 +19,8 @@ def format_output(year: str) -> str:
     对外导出函数：根据年份查询数据并返回 CSV 字符串。
     内部自行管理数据库会话。
     """
-    # 获取项目根目录的data.db文件路径
-    current_dir = os.path.dirname(os.path.abspath(__file__))  # pages/utils目录
-    project_root = os.path.dirname(os.path.dirname(current_dir))  # 项目根目录
-    db_path = os.path.join(project_root, 'data.db')
-    
-    db = DatabaseManager(f'sqlite:///{db_path}')
+    # 使用统一的数据库路径获取方式
+    db = DatabaseManager(get_database_url())
     with db.get_session() as session:
         return _format_output_with_session(session, year)
 

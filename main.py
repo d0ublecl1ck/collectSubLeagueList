@@ -14,6 +14,7 @@ from loguru import logger
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from models import DatabaseManager
+from utils import get_database_url
 from pages import (
     InputPage, 
     InputManagementPage, 
@@ -47,7 +48,7 @@ class FootballDataApp:
     def setup_database(self):
         """初始化数据库"""
         try:
-            self.db_manager = DatabaseManager('sqlite:///data.db')
+            self.db_manager = DatabaseManager(get_database_url())
             self.db_manager.create_tables()
             logger.info("数据库初始化成功")
         except Exception as e:
