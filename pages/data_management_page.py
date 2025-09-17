@@ -12,6 +12,7 @@ import threading
 from .base_page import BasePage
 from models import Task, Team, Match, Standings
 from .utils.format_output import format_output, validate_year_format
+from .utils.format_match_output import format_match_output as format_match_csv
 
 
 class DataManagementPage(BasePage):
@@ -64,7 +65,11 @@ class DataManagementPage(BasePage):
         # 导出数据按钮
         export_btn = ttk.Button(right_buttons, text="导出数据", command=self.export_data_by_year, width=10)
         export_btn.pack(side=tk.LEFT, padx=(0, 10))
-        
+
+        # 导出赛程表按钮
+        export_match_btn = ttk.Button(right_buttons, text="导出赛程表", command=self.export_match_data_by_year, width=10)
+        export_match_btn.pack(side=tk.LEFT, padx=(0, 10))
+
         # 刷新按钮
         refresh_btn = ttk.Button(right_buttons, text="刷新任务", command=self.refresh_task_data, width=10)
         refresh_btn.pack(side=tk.LEFT)
@@ -951,7 +956,7 @@ class DataManagementPage(BasePage):
         # 停止并隐藏进度条
         self.export_progress.stop()
         self.export_progress.pack_forget()
-        
+
         if success:
             self.export_status_label.config(text="导出成功！", foreground='green')
             self.show_message("成功", f"数据已成功导出到：\n{message}", "info")
@@ -962,3 +967,93 @@ class DataManagementPage(BasePage):
             self.show_message("错误", f"导出失败：{message}", "error")
             # 3秒后清除状态
             self.frame.after(3000, lambda: self.export_status_label.config(text=""))
+
+    # ========== 赛程表导出功能 ==========
+
+    def export_match_data_by_year(self):
+        """按年份导出赛程表数据"""
+        try:
+            # 获取年份输入
+            year = self.get_year_input()
+            if not year:
+                return  # 用户取消
+
+            # 验证年份格式
+            if not validate_year_format(year):
+                self.show_message("错误", "年份格式不正确！请输入4位数字年份（如：2022）", "error")
+                return
+
+            # 检查是否有该年份的数据
+            with self.get_db_session() as session:
+                # 同步导出逻辑：既包含当年赛季，也包含跨赛季（如 2024-2025）
+                year2 = f"{year}-{int(year) + 1}"
+                match_count = (
+                    session.query(Match)
+                    .join(Task, Match.task_id == Task.id)
+                    .filter(Task.year.in_([year, year2]))
+                    .count()
+                )
+                if match_count == 0:
+                    self.show_message("提示", f"未找到{year}年的赛程数据", "warning")
+                    return
+
+            # 选择保存位置
+            file_path = filedialog.asksaveasfilename(
+                title="保存导出文件",
+                defaultextension=".csv",
+                filetypes=[
+                    ("CSV文件", "*.csv"),
+                    ("所有文件", "*.*")
+                ],
+                initialfile=f"football_matches_{year}.csv"
+            )
+
+            if not file_path:
+                return  # 用户取消保存
+
+            # 在后台线程中执行导出
+            self.start_match_export_process(year, file_path)
+
+        except Exception as e:
+            self.logger.error(f"导出赛程数据失败: {e}")
+            self.show_message("错误", f"导出失败: {str(e)}", "error")
+
+    def start_match_export_process(self, year: str, file_path: str):
+        """开始赛程表导出过程（显示进度并在后台执行）"""
+        # 显示进度条和状态
+        self.export_progress.pack(side=tk.LEFT, padx=(10, 0))
+        self.export_progress.start()
+        self.export_status_label.config(text="正在导出赛程表...", foreground='blue')
+
+        # 在后台线程中执行导出
+        export_thread = threading.Thread(
+            target=self._export_match_worker,
+            args=(year, file_path),
+            daemon=True
+        )
+        export_thread.start()
+
+    def _export_match_worker(self, year: str, file_path: str):
+        """后台赛程表导出工作线程"""
+        try:
+            # 执行数据格式化（由工具函数内部管理数据库会话）
+            csv_content = format_match_csv(year)
+
+            if not csv_content:
+                # 在主线程中更新UI
+                self.frame.after(0, lambda: self._export_completed(
+                    False, f"未找到{year}年的赛程数据或数据为空"
+                ))
+                return
+
+            # 保存文件
+            with open(file_path, 'w', encoding='utf-8-sig', newline='') as f:
+                f.write(csv_content)
+
+            # 在主线程中更新UI - 成功
+            self.frame.after(0, lambda: self._export_completed(True, file_path))
+
+        except Exception as e:
+            self.logger.error(f"赛程表导出工作线程失败: {e}")
+            # 在主线程中更新UI - 失败
+            self.frame.after(0, lambda: self._export_completed(False, str(e)))
